@@ -41,6 +41,7 @@ grid.edit(grob, ..., redraw=TRUE)
 }
 
 \examples{
+grid.newpage()
 xa <- grid.xaxis(vp=viewport(width=.5, height=.5))
 grid.edit(xa, gp=gpar(col="red"))
 grid.edit(xa, "ticks", gp=gpar(col="green"))

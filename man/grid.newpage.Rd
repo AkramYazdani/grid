@@ -18,8 +18,7 @@ grid.newpage(recording = TRUE)
 }
 \author{Paul Murrell}
 \seealso{
-  \link{Grid},
-  \code{\link{grid.clear}}
+  \link{Grid}
 }
 
 \examples{

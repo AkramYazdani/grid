@@ -1,7 +1,3 @@
-is.viewport <- function(vp) {
-  inherits(vp, "viewport")
-}
-
 valid.viewport <- function(x, y, width, height, just, origin,
                            gp,
                            xscale, yscale, angle,
@@ -35,11 +31,21 @@ valid.viewport <- function(x, y, width, height, just, origin,
              # whatever is the "current" setting of fontsize
              # and lineheight.
              # "current" means at drawing time, which means when
-             # set.viewport is called.
+             # L_setviewport is called.
              # We record here the "current" value so that we can
              # reset the value when a child viewport is popped.
              cur.fontsize = NULL,
              cur.lineheight = NULL,
+             # When L_setviewport is called, we also record
+             # the transformation and layout for the viewport
+             # so that we don't have to recalculate it every
+             # time (until the device changes size)
+             cur.trans = NULL,
+             cur.widths = NULL,
+             cur.heights = NULL,
+             cur.width.cm = NULL,
+             cur.height.cm = NULL,
+             cur.rotation = NULL,
              xscale = xscale,
              yscale = yscale,
              angle = angle,
@@ -54,6 +60,14 @@ valid.viewport <- function(x, y, width, height, just, origin,
 
 print.viewport <- function(vp) {
   print(class(vp))
+}
+
+width.details.viewport <- function(vp) {
+  absolute.size(vp$width)
+}
+
+height.details.viewport <- function(vp) {
+  absolute.size(vp$height)
 }
 
 ####################
@@ -101,5 +115,9 @@ viewport <- function(x = unit(0.5, "npc"),
   valid.viewport(x, y, width, height, just, origin,
                  gp, xscale, yscale, angle,
                  layout, layout.pos.row, layout.pos.col)
+}
+
+is.viewport <- function(vp) {
+  inherits(vp, "viewport")
 }
 

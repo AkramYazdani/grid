@@ -22,26 +22,6 @@ grid.collection <- function(..., gp=gpar(), draw=T, vp=NULL) {
 }
 
 ######################################
-# Simple "side-effect" plotting functions         
-######################################
-
-grid.grill <- function(h=unit(seq(0.25, 0.75, 0.25), "npc"),
-                       v=unit(seq(0.25, 0.75, 0.25), "npc"),
-                       default.units="npc",
-                       gp=gpar(col="grey"), vp=NULL) {
-  if (!is.unit(h))
-    h <- unit(h, default.units)
-  if (!is.unit(v))
-    v <- unit(v, default.units)
-  # FIXME:  Should replace for loop and call to grid.lines with call to grid.segments
-  # once the latter exists
-  push.viewport(vp)
-  grid.segments(v, unit(0, "npc"), v, unit(1, "npc"), gp=gp)
-  grid.segments(unit(0, "npc"), h, unit(1, "npc"), h, gp=gp)
-  pop.viewport(vp)
-}
-
-######################################
 # AXES
 ######################################
 
@@ -235,5 +215,27 @@ grid.yaxis <- function(at=NA, label=TRUE, main=TRUE, gp=gpar(),
   grid.grob(list(at=at, major=major, ticks=ticks, labels=labels,
              label=label, gp=gp, main=main, vp=vp),
         c("yaxis", "axis"), draw)
+}
+
+######################################
+# Simple "side-effect" plotting functions         
+######################################
+
+grid.grill <- function(h=unit(seq(0.25, 0.75, 0.25), "npc"),
+                       v=unit(seq(0.25, 0.75, 0.25), "npc"),
+                       default.units="npc",
+                       gp=gpar(col="grey"), vp=NULL) {
+  if (!is.unit(h))
+    h <- unit(h, default.units)
+  if (!is.unit(v))
+    v <- unit(v, default.units)
+  # FIXME:  Should replace for loop and call to grid.lines with call to grid.segments
+  # once the latter exists
+  if (!is.null(vp))
+    push.viewport(vp)
+  grid.segments(v, unit(0, "npc"), v, unit(1, "npc"), gp=gp)
+  grid.segments(unit(0, "npc"), h, unit(1, "npc"), h, gp=gp)
+  if (!is.null(vp))
+    pop.viewport()
 }
 

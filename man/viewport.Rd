@@ -40,6 +40,9 @@ viewport(x = unit(0.5, "npc"), y = unit(0.5, "npc"),
   \item{lineheight}{A numeric value specifying the vertical distance
     between baselines of consecutive lines of text;  given as a
     multiple of the fontsize.}
+  \item{gp}{An object of class \code{gpar}, typically the output
+    from a call to the function \code{gpar}.  This is basically
+    a list of graphical parameter settings.}
   \item{xscale}{A numeric vector of length two indicating the minimum and
     maximum on the x-scale.}
   \item{yscale}{A numeric vector of length two indicating the minimum

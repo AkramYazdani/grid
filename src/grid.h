@@ -47,7 +47,11 @@ typedef enum {
     /* L_LINES now means multiples of the line height.
      * This is multiples of the font size.
      */
-    L_CHAR = 18
+    L_CHAR = 18,
+    L_GROBWIDTH = 19,
+    L_GROBHEIGHT = 20,
+    L_MYLINES = 21,
+    L_MYCHAR = 22
 } LUnit;
 
 typedef enum {
@@ -143,44 +147,78 @@ int L_nullLayoutMode;
 int pureNullUnit(SEXP unit, int index);
 
 double transformX(SEXP x, int index, LViewportContext vpc,
+		  double fontsize, double lineheight,
 		  double widthCM, double heightCM,
 		  DevDesc *dd);
 
 double transformY(SEXP y, int index, LViewportContext vpc,
+		  double fontsize, double lineheight,
 		  double widthCM, double heightCM,
 		  DevDesc *dd);
 
 double transformWidth(SEXP width, int index, LViewportContext vpc,
+		      double fontsize, double lineheight,
 		      double widthCM, double heightCM,
 		      DevDesc *dd);
 
 double transformHeight(SEXP height, int index, LViewportContext vpc,
+		       double fontsize, double lineheight,
 		       double widthCM, double heightCM,
 		       DevDesc *dd);
 
+double transformXtoNative(SEXP x, int index,
+			  LViewportContext vpc,
+			  double fontsize, double lineheight,
+			  double widthCM, double heightCM,
+			  DevDesc *dd);
+
+double transformYtoNative(SEXP y, int index,
+			  LViewportContext vpc,
+			  double fontsize, double lineheight,
+			  double widthCM, double heightCM,
+			  DevDesc *dd);
+
+double transformWidthtoNative(SEXP width, int index,
+			      LViewportContext vpc,
+			      double fontsize, double lineheight,
+			      double widthCM, double heightCM,
+			      DevDesc *dd);
+
+double transformHeighttoNative(SEXP height, int index,
+			       LViewportContext vpc,
+			       double fontsize, double lineheight,
+			       double widthCM, double heightCM,
+			       DevDesc *dd);
+
 double transformXtoINCHES(SEXP x, int index, LViewportContext vpc,
+			  double fontsize, double lineheight,
 			  double widthCM, double heightCM,
 			  DevDesc *dd);
 
 double transformYtoINCHES(SEXP y, int index, LViewportContext vpc,
+			  double fontsize, double lineheight,
 			  double widthCM, double heightCM,
 			  DevDesc *dd);
 
 void transformLocn(SEXP x, SEXP y, int index, LViewportContext vpc,
+		   double fontsize, double lineheight,
 		   double widthCM, double heightCM,
 		   DevDesc *dd,
 		   LTransform t,
 		   double *xx, double *yy);
 
 double transformWidthtoINCHES(SEXP w, int index, LViewportContext vpc,
+			      double fontsize, double lineheight,
 			      double widthCM, double heightCM,
 			      DevDesc *dd);
 
 double transformHeighttoINCHES(SEXP h, int index, LViewportContext vpc,
+			       double fontsize, double lineheight,
 			       double widthCM, double heightCM,
 			       DevDesc *dd);
 
 void transformDimn(SEXP w, SEXP h, int index, LViewportContext vpc,
+		   double fontsize, double lineheight,
 		   double widthCM, double heightCM,
 		   DevDesc *dd,
 		   double rotationAngle,
@@ -243,6 +281,18 @@ SEXP viewportLayout(SEXP vp);
 
 SEXP viewportParent(SEXP vp);
 
+SEXP viewportCurrentTransform(SEXP vp);
+
+SEXP viewportCurrentLayoutWidths(SEXP vp);
+
+SEXP viewportCurrentLayoutHeights(SEXP vp);
+
+SEXP viewportCurrentWidthCM(SEXP vp);
+
+SEXP viewportCurrentHeightCM(SEXP vp);
+
+SEXP viewportCurrentRotation(SEXP vp);
+
 void fillViewportContextFromViewport(SEXP vp, LViewportContext *vpc);
 
 void copyViewportContext(LViewportContext vpc1, LViewportContext *vpc2);
@@ -252,16 +302,22 @@ void viewportTransform(SEXP vp, SEXP parent, DevDesc *dd,
 		       LTransform transform, double *rotationAngle);
 
 /* From layout.c */
+void calcViewportLayout(SEXP viewport,
+			double parentWidthCM,
+			double parentHeightCM,
+			LViewportContext parentContext,
+			DevDesc *dd);
 void calcViewportLocationFromLayout(SEXP layoutPosRow,
 				    SEXP layoutPosCol,
-				    SEXP layout,
-				    double parentWidthCM,
-				    double parentHeightCM,
-				    LViewportContext parentContext,
-				    DevDesc *dd,
+				    SEXP parent,
 				    LViewportLocation *vpl);
 
-/* From lattice.c */
+/* From grid.c */
+LTransform L_viewportTransform;
+double L_rotationAngle;
+double L_viewportWidthCM;
+double L_viewportHeightCM;
+LViewportContext L_viewportContext;
 
 void getDeviceSize(DevDesc *dd, double *devWidthCM, double *devHeightCM);
 

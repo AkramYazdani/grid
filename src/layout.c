@@ -31,7 +31,24 @@ Rboolean relativeUnit(SEXP unit, int index) {
     return pureNullUnit(unit, index);
 }
 
+void findRelWidths(SEXP layout, int *relativeWidths) 
+{
+    int i;
+    SEXP widths = layoutWidths(layout);
+    for (i=0; i<layoutNCol(layout); i++) 
+	relativeWidths[i] = relativeUnit(widths, i);
+}
+
+void findRelHeights(SEXP layout, int *relativeHeights) 
+{
+    int i;
+    SEXP heights = layoutHeights(layout);
+    for (i=0; i<layoutNRow(layout); i++) 
+	relativeHeights[i] = relativeUnit(heights, i);
+}
+
 void allocateKnownWidths(SEXP layout, 
+			 int *relativeWidths, 
 			 double parentWidthCM, double parentHeightCM,
 			 LViewportContext parentContext,
 			 DevDesc *dd,
@@ -40,14 +57,17 @@ void allocateKnownWidths(SEXP layout,
     int i;
     SEXP widths = layoutWidths(layout);
     for (i=0; i<layoutNCol(layout); i++) 
-	if (!relativeUnit(widths, i)) {
+	if (!relativeWidths[i]) {
 	    npcWidths[i] = transformWidth(widths, i, parentContext,
+					  parentContext.fontsize,
+					  parentContext.lineheight,
 					  parentWidthCM, parentHeightCM, dd);
 	    *widthLeftCM -= npcWidths[i]*parentWidthCM;
 	}
 }
 
 void allocateKnownHeights(SEXP layout, 
+			  int *relativeHeights,
 			  double parentWidthCM, double parentHeightCM,
 			  LViewportContext parentContext,
 			  DevDesc *dd,
@@ -56,8 +76,10 @@ void allocateKnownHeights(SEXP layout,
     int i;
     SEXP heights = layoutHeights(layout);
     for (i=0; i<layoutNRow(layout); i++) 
-	if (!relativeUnit(heights, i)) {
+	if (!relativeHeights[i]) {
 	    npcHeights[i] = transformHeight(heights, i, parentContext,
+					    parentContext.fontsize,
+					    parentContext.lineheight,
 					    parentWidthCM, parentHeightCM, dd);
 	    *heightLeftCM -= npcHeights[i]*parentHeightCM;
 	}
@@ -93,7 +115,8 @@ int rowRespected(int row, SEXP layout) {
 
 /* These sum up ALL relative widths and heights (unit = "null")
  */
-double totalWidth(SEXP layout, LViewportContext parentContext)
+double totalWidth(SEXP layout, int *relativeWidths,
+		  LViewportContext parentContext)
 {
     int i;
     SEXP widths = layoutWidths(layout);
@@ -101,13 +124,17 @@ double totalWidth(SEXP layout, LViewportContext parentContext)
     /* We are calculating "null" units for a layout */
     L_nullLayoutMode = 1;
     for (i=0; i<layoutNCol(layout); i++) 
-	if (relativeUnit(widths, i))
-	    totalWidth += transformWidth(widths, i, parentContext, 0, 0, NULL);
+	if (relativeWidths[i])
+	    totalWidth += transformWidth(widths, i, parentContext, 
+					 parentContext.fontsize,
+					 parentContext.lineheight,
+					 0, 0, NULL);
     L_nullLayoutMode = 0;
     return totalWidth;
 }
 
-double totalHeight(SEXP layout, LViewportContext parentContext)
+double totalHeight(SEXP layout, int *relativeHeights,
+		   LViewportContext parentContext)
 {
     int i;
     SEXP heights = layoutHeights(layout);
@@ -115,14 +142,17 @@ double totalHeight(SEXP layout, LViewportContext parentContext)
     /* We are calculating "null" units for a layout */
     L_nullLayoutMode = 1;
     for (i=0; i<layoutNRow(layout); i++) 
-	if (relativeUnit(heights, i))
+	if (relativeHeights[i])
 	    totalHeight += transformHeight(heights, i, parentContext, 
+					   parentContext.fontsize,
+					   parentContext.lineheight,
 					   0, 0, NULL);
     L_nullLayoutMode = 0;
     return totalHeight;
 }
 
 void allocateRespected(SEXP layout, 
+		       int *relativeWidths, int *relativeHeights,
 		       double hmult, double vmult,
 		       double *reducedWidthCM, double *reducedHeightCM,
 		       LViewportContext parentContext,
@@ -133,8 +163,8 @@ void allocateRespected(SEXP layout,
     SEXP widths = layoutWidths(layout);
     SEXP heights = layoutHeights(layout);
     int respect = layoutRespect(layout);
-    double sumWidth = totalWidth(layout, parentContext);
-    double sumHeight = totalHeight(layout, parentContext);
+    double sumWidth = totalWidth(layout, relativeWidths, parentContext);
+    double sumHeight = totalHeight(layout, relativeHeights, parentContext);
     double denom, mult;
     double tempWidthCM = *reducedWidthCM;
     double tempHeightCM = *reducedHeightCM;
@@ -153,7 +183,7 @@ void allocateRespected(SEXP layout,
 	/* Allocate respected widths 
 	 */
 	for (i=0; i<layoutNCol(layout); i++)
-	    if (relativeUnit(widths, i))
+	    if (relativeWidths[i])
 		if (colRespected(i, layout)) {
 		    /* Build a unit SEXP with a single value and no data
 		     */
@@ -161,6 +191,8 @@ void allocateRespected(SEXP layout,
 		    PROTECT(width = unit(unitValue(widths, i)/denom*mult, 
 					 L_CM));
 		    npcWidths[i] = transformWidth(width, 0, parentContext,
+						  parentContext.fontsize,
+						  parentContext.lineheight,
 						  tempWidthCM, 
 						  tempHeightCM, 
 						  dd);
@@ -171,12 +203,14 @@ void allocateRespected(SEXP layout,
 	/* Allocate respected heights
 	 */
 	for (i=0; i<layoutNRow(layout); i++)
-	    if (relativeUnit(heights, i))
+	    if (relativeHeights[i])
 		if (rowRespected(i, layout)) {
 		    SEXP height;
 		    PROTECT(height = unit(unitValue(heights, i)/denom*mult,
 					  L_CM));
 		    npcHeights[i] = transformHeight(height, 0, parentContext,
+						    parentContext.fontsize,
+						    parentContext.lineheight,
 						    tempWidthCM, 
 						    tempHeightCM,
 						    dd);
@@ -189,7 +223,8 @@ void allocateRespected(SEXP layout,
 
 /* These sum up unrespected relative widths and heights (unit = "null")
  */
-double totalUnrespectedWidth(SEXP layout, LViewportContext parentContext)
+double totalUnrespectedWidth(SEXP layout, int *relativeWidths,
+			     LViewportContext parentContext)
 {
     int i;
     SEXP widths = layoutWidths(layout);
@@ -197,15 +232,18 @@ double totalUnrespectedWidth(SEXP layout, LViewportContext parentContext)
     /* We are calculating "null" units for a layout */
     L_nullLayoutMode = 1;
     for (i=0; i<layoutNCol(layout); i++) 
-	if (relativeUnit(widths, i))
+	if (relativeWidths[i])
 	    if (!colRespected(i, layout))
-		totalWidth += transformWidth(widths, i, parentContext, 0, 0,
-					     NULL);
+		totalWidth += transformWidth(widths, i, parentContext, 
+					     parentContext.fontsize,
+					     parentContext.lineheight,
+					     0, 0, NULL);
     L_nullLayoutMode = 0;
     return totalWidth;
 }
 
-double totalUnrespectedHeight(SEXP layout, LViewportContext parentContext)
+double totalUnrespectedHeight(SEXP layout, int *relativeHeights,
+			      LViewportContext parentContext)
 {
     int i;
     SEXP heights = layoutHeights(layout);
@@ -213,45 +251,57 @@ double totalUnrespectedHeight(SEXP layout, LViewportContext parentContext)
     /* We are calculating "null" units for a layout */
     L_nullLayoutMode = 1;
     for (i=0; i<layoutNRow(layout); i++) 
-	if (relativeUnit(heights, i))
+	if (relativeHeights[i])
 	    if (!rowRespected(i, layout))
 		totalHeight += transformHeight(heights, i, parentContext, 
-						0, 0, NULL);
+					       parentContext.fontsize,
+					       parentContext.lineheight,
+					       0, 0, NULL);
     L_nullLayoutMode = 0;
     return totalHeight;
 }
 
-void allocateRemainingWidth(SEXP layout, double multiplier, 
+void allocateRemainingWidth(SEXP layout, int *relativeWidths,
+			    double multiplier, 
 			    LViewportContext parentContext, double *npcWidths)
 {
     int i;
     SEXP widths = layoutWidths(layout);
-    double sumWidth = totalUnrespectedWidth(layout, parentContext);
+    double sumWidth = totalUnrespectedWidth(layout, relativeWidths,
+					    parentContext);
     /* We are calculating "null" units for a layout */
     L_nullLayoutMode = 1;
     for (i=0; i<layoutNCol(layout); i++) 
-	if (relativeUnit(widths, i))
+	if (relativeWidths[i])
 	    if (!colRespected(i, layout))
 		npcWidths[i] = multiplier*
-		    transformWidth(widths, i, parentContext, 0, 0, NULL)/
+		    transformWidth(widths, i, parentContext, 
+				   parentContext.fontsize,
+				   parentContext.lineheight,
+				   0, 0, NULL)/
 		    sumWidth;
     L_nullLayoutMode = 0;
 }
 
-void allocateRemainingHeight(SEXP layout, double multiplier, 
+void allocateRemainingHeight(SEXP layout, int *relativeHeights,
+			     double multiplier, 
 			     LViewportContext parentContext,
 			     double *npcHeights)
 {
     int i;
     SEXP heights = layoutHeights(layout);
-    double sumHeight = totalUnrespectedHeight(layout, parentContext);
+    double sumHeight = totalUnrespectedHeight(layout, relativeHeights,
+					      parentContext);
     /* We are calculating "null" units for a layout */
     L_nullLayoutMode = 1;
     for (i=0; i<layoutNRow(layout); i++) 
-	if (relativeUnit(heights, i))
+	if (relativeHeights[i])
 	    if (!rowRespected(i, layout))
 		npcHeights[i] = multiplier*
-		    transformHeight(heights, i, parentContext, 0, 0, NULL)/
+		    transformHeight(heights, i, parentContext, 
+				    parentContext.fontsize,
+				    parentContext.lineheight,
+				    0, 0, NULL)/
 		    sumHeight;
     L_nullLayoutMode = 0;
 }
@@ -280,23 +330,83 @@ static void subRegion(SEXP layout,
     *height = sumDims(heights, minrow, maxrow);
 }
 
-void calcViewportLocationFromLayout(SEXP layoutPosRow,
-				    SEXP layoutPosCol,
-				    SEXP layout,
-				    double parentWidthCM,
-				    double parentHeightCM,
-				    LViewportContext parentContext,
-				    DevDesc *dd,
-				    LViewportLocation *vpl)
+void calcViewportLayout(SEXP viewport,
+			double parentWidthCM,
+			double parentHeightCM,
+			LViewportContext parentContext,
+			DevDesc *dd)
 {
-    int minrow, maxrow, mincol, maxcol;
+    int i;
+    SEXP currentWidths, currentHeights;
+    SEXP layout = viewportLayout(viewport);
     double *npcWidths = (double *) R_alloc(layoutNCol(layout), sizeof(double));
     double *npcHeights = (double *) R_alloc(layoutNRow(layout), 
 					    sizeof(double));
+    int *relativeWidths = (int *) R_alloc(layoutNCol(layout), sizeof(int));
+    int *relativeHeights = (int *) R_alloc(layoutNRow(layout), sizeof(int));    
     double reducedWidthCM = parentWidthCM;
     double reducedHeightCM = parentHeightCM;
+    /* Figure out which rows and cols have relative heights and widths 
+     */
+    findRelWidths(layout, relativeWidths);
+    findRelHeights(layout, relativeHeights);
+    /* For any width or height which has a unit other than "null"
+     * we can immediately figure out its physical size and we can convert to 
+     * "npc" units.  We do this and return the widthCM and heightCM 
+     * remaining after these widths and heights have been allocated
+     */
+    allocateKnownWidths(layout, relativeWidths,
+			parentWidthCM, parentHeightCM, 
+			parentContext,
+			dd, npcWidths,
+			&reducedWidthCM);
+    allocateKnownHeights(layout, relativeHeights,
+			 parentWidthCM, parentHeightCM, 
+			 parentContext,
+			 dd, npcHeights, 
+			 &reducedHeightCM);
+    /* Now allocate respected widths and heights and return
+     * widthCM and heightCM remaining 
+     */
+    allocateRespected(layout, relativeWidths, relativeHeights, 
+		      reducedWidthCM/parentWidthCM,
+		      reducedHeightCM/parentHeightCM,
+		      &reducedWidthCM, &reducedHeightCM,
+		      parentContext, dd,
+		      npcWidths, npcHeights);
+    /* Now allocate relative widths and heights (unit = "null")
+     * in the remaining space
+     */
+    allocateRemainingWidth(layout, relativeWidths,
+			   reducedWidthCM/parentWidthCM, 
+			   parentContext, npcWidths);
+    allocateRemainingHeight(layout, relativeHeights,
+			    reducedHeightCM/parentHeightCM, 
+			    parentContext, npcHeights);
+    /* Record the widths and heights in the viewport
+     */
+    PROTECT(currentWidths = allocVector(REALSXP, layoutNCol(layout)));
+    PROTECT(currentHeights = allocVector(REALSXP, layoutNRow(layout)));
+    for (i=0; i<layoutNCol(layout); i++) {
+	REAL(currentWidths)[i] = npcWidths[i];
+    }
+    for (i=0; i<layoutNRow(layout); i++) {
+	REAL(currentHeights)[i] = npcHeights[i];
+    }
+    setListElement(viewport, "cur.widths", currentWidths);
+    setListElement(viewport, "cur.heights", currentHeights);
+    UNPROTECT(2);
+}
+
+void calcViewportLocationFromLayout(SEXP layoutPosRow,
+				    SEXP layoutPosCol,
+				    SEXP parent,
+				    LViewportLocation *vpl)
+{
+    int minrow, maxrow, mincol, maxcol;
     double x, y, width, height;
     SEXP vpx, vpy, vpwidth, vpheight;
+    SEXP layout = viewportLayout(parent);
     /* It is possible for ONE of layoutPosRow and layoutPosCol to
      * be NULL;  this is interpreted as "occupy all rows/cols"
      * NOTE: The " - 1" is there because R is 1-based and C is zero-based 
@@ -315,38 +425,10 @@ void calcViewportLocationFromLayout(SEXP layoutPosRow,
 	mincol = INTEGER(layoutPosCol)[0] - 1;
 	maxcol = INTEGER(layoutPosCol)[1] - 1;
     }
-    /* For any width or height which has a unit other than "null"
-     * we can immediately figure out its physical size and we can convert to 
-     * "npc" units.  We do this and return the widthCM and heightCM 
-     * remaining after these widths and heights have been allocated
-     */
-    allocateKnownWidths(layout, parentWidthCM, parentHeightCM, 
-			parentContext,
-			dd, npcWidths,
-			&reducedWidthCM);
-    allocateKnownHeights(layout, parentWidthCM, parentHeightCM, 
-			 parentContext,
-			 dd, npcHeights, 
-			 &reducedHeightCM);
-    /* Now allocate respected widths and heights and return
-     * widthCM and heightCM remaining 
-     */
-    allocateRespected(layout, 
-		      reducedWidthCM/parentWidthCM,
-		      reducedHeightCM/parentHeightCM,
-		      &reducedWidthCM, &reducedHeightCM,
-		      parentContext, dd,
-		      npcWidths, npcHeights);
-    /* Now allocate relative widths and heights (unit = "null")
-     * in the remaining space
-     */
-    allocateRemainingWidth(layout, reducedWidthCM/parentWidthCM, 
-			   parentContext, npcWidths);
-    allocateRemainingHeight(layout, reducedHeightCM/parentHeightCM, 
-			    parentContext, npcHeights);
     /* Put the relevant values into vpl */
-    subRegion(layout, minrow, maxrow, mincol, maxcol,
-	      npcWidths, npcHeights, 
+    subRegion(viewportLayout(parent), minrow, maxrow, mincol, maxcol,
+	      REAL(viewportCurrentLayoutWidths(parent)), 
+	      REAL(viewportCurrentLayoutHeights(parent)),
 	      &x, &y, &width, &height);
     PROTECT(vpx = unit(x, L_NPC));
     vpl->x = vpx;

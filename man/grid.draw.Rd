@@ -30,6 +30,7 @@ grid.draw(x, recording=TRUE)
 }
 
 \examples{
+grid.newpage()
 # Create a graphical object, but don't draw it
 l <- grid.lines(draw=FALSE)
 # Draw it

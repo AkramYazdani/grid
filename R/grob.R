@@ -154,7 +154,7 @@ edit.details.default <- function(x, new.values) {
 # side-effects).
 # For example, so that the following code will draw
 # a rectangle AND a line:
-#   temp <- function() { llines(); grid.rect() }
+#   temp <- function() { grid.lines(); grid.rect() }
 #   temp()
 # All drawing methods have to extract the grob value at the start and
 # record if necessary at the end.  The approach below means that custom
@@ -164,22 +164,20 @@ edit.details.default <- function(x, new.values) {
 # and a slot "gpar" containing a gpar
 grid.draw <- function(x, recording=TRUE) {
   if (!is.null(x)) {
-    if (is.grob(x) || is.viewport(x)) {
       list.struct <- get.value(x)
-      # automatically push/pop the viewport and set/unset the gpar 
-      push.viewport(list.struct$vp, recording=FALSE)
+      # automatically push/pop the viewport and set/unset the gpar
+      if (!is.null(list.struct$vp))
+        push.viewport(list.struct$vp, recording=FALSE)
       if (!is.null(list.struct$gp))
         set.gpar(list.struct$gp)
       # Do any class-specific drawing
       draw.details(list.struct, x, recording)
       if (!is.null(list.struct$gp))
         unset.gpar(list.struct$gp)
-      pop.viewport(list.struct$vp, recording=FALSE)
+      if (!is.null(list.struct$vp))
+          pop.viewport(recording=FALSE)
       if (recording)
         record(x)
-    }
-    else
-      stop("Trying to draw non-grob or non-viewport")
   }
 }
 
@@ -193,11 +191,17 @@ draw.details <- function(x, x.wrapper, recording) {
   UseMethod("draw.details")
 }
 
+# When there is a pop.viewport, the number of viewports popped
+# gets put on the display list
+draw.details.default <- function(n, n.again, recording) {
+  pop.viewport(n, recording)
+}
+
 draw.details.glist <- function(glist, grob, recording) {
 }
 
 draw.details.viewport <- function(vp, vp.again, recording) {
-  set.viewport(vp, recording=FALSE)
+  push.viewport(vp, recording=FALSE)
 }
 
 print.grob <- function(grob) {

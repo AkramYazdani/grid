@@ -12,4 +12,20 @@ valid.just <- function(just, n) {
   just
 }
 
+justifyX <- function(x, width, just) {
+  switch(just[1],
+         left=x,
+         centre=x - width*0.5,
+         center=x - width*0.5,
+         right=x - width)
+}
+
+justifyY <- function(y, height, just) {
+  switch(if (length(just) > 1) just[2] else just[1],
+         bottom=y,
+         centre=y - height*0.5,
+         center=y - height*0.5,
+         top=y - height)
+}
+
 

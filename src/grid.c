@@ -1,32 +1,9 @@
 #include "grid.h"
 
-/* IMPORTANT NOTE:
+/* NOTE:
  * The extensive use of L or L_ prefixes dates back to when this 
  * package used to be called "lattice"
  */
-
-/* Global record of the transform for the current viewport 
- * (i.e., the viewport that drawing occurs in by default
- * (i.e., unless a temporary viewport has been specified))
- */
-LTransform L_viewportTransform;
-
-/* Global record of the total angle of rotation for the current viewport
- */
-double L_rotationAngle;
-
-/* Global record of the size in CM of the current viewport
- */
-double L_viewportWidthCM;
-double L_viewportHeightCM;
-
-/* Global LViewportContext
- * All drawing occurs within this context.
- * Set permanently by L_setviewport.
- * Can also be set temporarily by any other L_* function, but those
- * functions are responsible for restoring the original setting.
- */
-LViewportContext L_viewportContext;
 
 /* Global device dimensions
  * 
@@ -57,7 +34,7 @@ Rboolean deviceChanged(double devWidthCM, double devHeightCM)
     return result;
 }
 
-SEXP L_setviewport(SEXP vp)
+SEXP L_setviewport(SEXP vp, SEXP setParent)
 {
     double devWidthCM, devHeightCM;
     /* Get the current device 
@@ -66,11 +43,77 @@ SEXP L_setviewport(SEXP vp)
     /* Get the current device size 
      */
     getDeviceSize(dd, &devWidthCM, &devHeightCM);
-    viewportTransform(vp, viewportParent(vp), dd,
-		      &L_viewportWidthCM, &L_viewportHeightCM,
-		      L_viewportTransform, &L_rotationAngle);
-    fillViewportContextFromViewport(vp, &L_viewportContext);
+    if (LOGICAL(setParent)[0])
+	/* Set the viewport's parent
+	 * Need to do this in here so that redrawing via R BASE display
+	 * list works 
+	 */
+	setListElement(vp, "parent", 
+		       findVar(install(".grid.viewport"), R_GlobalEnv));
+    /* Calculate the transformation for the viewport.
+     * This will hopefully only involve updating the transformation
+     * from the previous viewport.
+     * However, if the device has changed size, we will need to
+     * recalculate the transformation from the top-level viewport
+     * all the way down.
+     */
+    calcViewportTransform(vp, viewportParent(vp), 
+			  !deviceChanged(devWidthCM, devHeightCM), dd);
+    /* Set the value of .grid.viewport
+     * Need to do this in here so that redrawing via R BASE display
+     * list works 
+     */
+    setVar(install(".grid.viewport"), vp, R_GlobalEnv);
     return R_NilValue;
+}
+
+/* This is similar to L_setviewport, except that it will do 
+ * NOTHING if the device has not changed size
+ */
+SEXP L_unsetviewport(SEXP last)
+{
+    /* Get the value of .grid.viewport
+     * Need to do this in here so that redrawing via R BASE display
+     * list works 
+     */    
+    SEXP gvp = findVar(install(".grid.viewport"), R_GlobalEnv);
+    SEXP newvp;
+    /* NOTE that the R code has already checked that .grid.viewport$parent
+     * is non-NULL
+     */
+    PROTECT(newvp = getListElement(gvp, "parent"));
+    if (LOGICAL(last)[0]) {
+	double devWidthCM, devHeightCM;
+	/* Get the current device 
+	 */
+	DevDesc *dd = CurrentDevice();
+	/* Get the current device size 
+	 */
+	getDeviceSize(dd, &devWidthCM, &devHeightCM);
+	if (deviceChanged(devWidthCM, devHeightCM))
+	    calcViewportTransform(newvp, viewportParent(newvp), 1, dd);
+    }
+    /* Set the value of .grid.viewport
+     * Need to do this in here so that redrawing via R BASE display
+     * list works 
+     */
+    setVar(install(".grid.viewport"), newvp, R_GlobalEnv);
+    UNPROTECT(1);
+    return R_NilValue;
+}
+
+/* This function is just used to fool R base graphics into thinking
+ * that plot.new() has been called. 
+ * Base R graphics has the notion of a current plot and certain 
+ * functions can only add to an existing plot, so there has to be
+ * a plot to add something to.
+ * This check occurs in .Call.graphics so I have to make R think
+ * that I've called plot.new() for the grid functions to work
+ * all of the time.
+ */
+SEXP L_initDevice() {
+    DevDesc *dd = CurrentDevice();
+    GSetState(1, dd);
 }
 
 /* FIXME:  GNewPlot runs in two different modes, depending on whether
@@ -115,8 +158,6 @@ SEXP L_newpage()
      * i.e., it thinks it is being replayed from the display list.
      */
     DevDesc *dd = GNewPlot(FALSE);
-    /* Fool base R graphics into thinking that plot.new() has been called 
-     */
     GSetState(1, dd);
     return R_NilValue;
 }
@@ -126,47 +167,166 @@ void getViewportTransform(SEXP currentvp,
 			  double *vpWidthCM, double *vpHeightCM,
 			  LTransform transform, double *rotationAngle) 
 {
+    int i, j;
     double devWidthCM, devHeightCM;
     getDeviceSize(dd, &devWidthCM, &devHeightCM) ;
     if (deviceChanged(devWidthCM, devHeightCM)) {
 	/* IF the device has changed, recalculate the viewport transform
 	 */
-	viewportTransform(currentvp, viewportParent(currentvp), dd, 
-			  vpWidthCM, vpHeightCM, 
-			  transform, rotationAngle);
-	/* AND save the default viewport transform
-	 */
-	copyTransform(transform, L_viewportTransform);
-	L_rotationAngle = *rotationAngle;
-	L_viewportWidthCM = *vpWidthCM;
-	L_viewportHeightCM = *vpHeightCM;
+	calcViewportTransform(currentvp, viewportParent(currentvp), 1, dd); 
     }
-    else {
-	/* ELSE just reuse the normalised default viewport 
-	 */
-	copyTransform(L_viewportTransform, transform);
-	*rotationAngle = L_rotationAngle;
-	*vpWidthCM = L_viewportWidthCM;
-	*vpHeightCM = L_viewportHeightCM;
-    }
+    for (i=0; i<3; i++)
+	for (j=0; j<3; j++)
+	    transform[i][j] = 
+		REAL(viewportCurrentTransform(currentvp))[i + 3*j];
+    *rotationAngle = REAL(viewportCurrentRotation(currentvp))[0];
+    *vpWidthCM = REAL(viewportCurrentWidthCM(currentvp))[0];
+    *vpHeightCM = REAL(viewportCurrentHeightCM(currentvp))[0];
 }
 
 void getViewportContext(SEXP vp, LViewportContext *vpc)
 {
-    /* NOTE that this just copies the global viewport context
-     * which contains information about fontsize, which did not
-     * come from a viewport.  
-     * If this changes so that information is obtained from a 
-     * viewport then we will need to be given information about
-     * fontsize as well.
-     */
-    copyViewportContext(L_viewportContext, vpc);
+    fillViewportContextFromViewport(vp, vpc);
 }
+
+
+/***************************
+ * CONVERSION FUNCTIONS
+ ***************************
+ */
+
+/* Just do a convert-to-native function for now
+ * what = 0 means x, 1 means y, 2 means width, 3 means height
+ * NOTE that we are only converting relative to the viewport
+ * NOT relative to the device
+ */
+SEXP L_convertToNative(SEXP x, SEXP what,
+		       SEXP fontsize, SEXP lineheight, SEXP currentvp) 
+{
+    int i, nx;
+    double vpWidthCM, vpHeightCM;
+    double rotationAngle;
+    LViewportContext vpc;
+    LTransform transform;
+    SEXP result;
+    /* Get the current device 
+     */
+    DevDesc *dd = CurrentDevice();
+    getViewportTransform(currentvp, dd, 
+			 &vpWidthCM, &vpHeightCM, 
+			 transform, &rotationAngle);
+    getViewportContext(currentvp, &vpc);
+    nx = unitLength(x);
+    PROTECT(result = allocVector(REALSXP, nx));
+    switch (INTEGER(what)[0]) {
+    case 0:
+	for (i=0; i<nx; i++)  
+	    REAL(result)[i] = transformXtoNative(x, i, vpc, 
+						 REAL(fontsize)[0], 
+						 REAL(lineheight)[0],
+						 vpWidthCM, vpHeightCM,
+						 dd);
+	break;
+    case 1:	
+	for (i=0; i<nx; i++)  
+	    REAL(result)[i] = transformYtoNative(x, i, vpc, 
+						 REAL(fontsize)[0], 
+						 REAL(lineheight)[0],
+						 vpWidthCM, vpHeightCM,
+						 dd);
+	break;
+    case 2:
+	for (i=0; i<nx; i++)  
+	    REAL(result)[i] = transformWidthtoNative(x, i, vpc, 
+						     REAL(fontsize)[0], 
+						     REAL(lineheight)[0],
+						     vpWidthCM, vpHeightCM,
+						     dd);
+	break;
+    case 3:
+	for (i=0; i<nx; i++)  
+	    REAL(result)[i] = transformHeighttoNative(x, i, vpc, 
+						      REAL(fontsize)[0], 
+						      REAL(lineheight)[0],
+						      vpWidthCM, vpHeightCM,
+						      dd);
+	break;
+    }
+    UNPROTECT(1);
+    return result;
     
+}
+
+/***************************
+ * DRAWING PRIMITIVES
+ ***************************
+ */
+
+/* Global "current location"
+ * Initial setting relies on the fact that all values sent to devices
+ * are in INCHES;  so (0, 0) is the bottom-left corner of the device.
+ */
+double L_x = 0;
+double L_y = 0;
+
+SEXP L_moveTo(SEXP x, SEXP y, SEXP fontsize, SEXP lineheight, SEXP currentvp)
+{    
+    double xx, yy;
+    double vpWidthCM, vpHeightCM;
+    double rotationAngle;
+    LViewportContext vpc;
+    LTransform transform;
+    /* Get the current device 
+     */
+    DevDesc *dd = CurrentDevice();
+    getViewportTransform(currentvp, dd, 
+			 &vpWidthCM, &vpHeightCM, 
+			 transform, &rotationAngle);
+    getViewportContext(currentvp, &vpc);
+    /* Convert the x and y values to CM locations */
+    transformLocn(x, y, 0, vpc, REAL(fontsize)[0], REAL(lineheight)[0],
+		  vpWidthCM, vpHeightCM,
+		  dd,
+		  transform,
+		  &xx, &yy);
+    L_x = xx;
+    L_y = yy;
+    return R_NilValue;
+}
+
+SEXP L_lineTo(SEXP x, SEXP y, SEXP fontsize, SEXP lineheight, SEXP currentvp)
+{
+    double xx, yy;
+    double vpWidthCM, vpHeightCM;
+    double rotationAngle;
+    LViewportContext vpc;
+    LTransform transform;
+    /* Get the current device 
+     */
+    DevDesc *dd = CurrentDevice();
+    getViewportTransform(currentvp, dd, 
+			 &vpWidthCM, &vpHeightCM, 
+			 transform, &rotationAngle);
+    getViewportContext(currentvp, &vpc);
+    /* Convert the x and y values to CM locations */
+    transformLocn(x, y, 0, vpc,  REAL(fontsize)[0], REAL(lineheight)[0],
+		  vpWidthCM, vpHeightCM,
+		  dd,
+		  transform,
+		  &xx, &yy);
+    GMode(1, dd);
+    GLine(L_x, L_y, xx, yy, INCHES, dd);
+    /* Indicate to the device that drawing has finished */
+    GMode(0, dd);
+    L_x = xx;
+    L_y = yy;
+    return R_NilValue;
+}
+
 /* We are assuming here that the R code has checked that x and y 
  * are unit objects and that vp is a viewport
  */
-SEXP L_lines(SEXP x, SEXP y, SEXP currentvp) 
+SEXP L_lines(SEXP x, SEXP y, SEXP fontsize, SEXP lineheight, SEXP currentvp) 
 {
     int i, nx;
     double *xx, *yy;
@@ -186,7 +346,7 @@ SEXP L_lines(SEXP x, SEXP y, SEXP currentvp)
     xx = (double *) R_alloc(nx, sizeof(double));
     yy = (double *) R_alloc(nx, sizeof(double));
     for (i=0; i<nx; i++) {
-	transformLocn(x, y, i, vpc,
+	transformLocn(x, y, i, vpc, REAL(fontsize)[0], REAL(lineheight)[0],
 		      vpWidthCM, vpHeightCM,
 		      dd,
 		      transform,
@@ -202,7 +362,8 @@ SEXP L_lines(SEXP x, SEXP y, SEXP currentvp)
     return R_NilValue;
 }
 
-SEXP L_segments(SEXP x0, SEXP y0, SEXP x1, SEXP y1, SEXP currentvp) 
+SEXP L_segments(SEXP x0, SEXP y0, SEXP x1, SEXP y1, 
+		SEXP fontsize, SEXP lineheight, SEXP currentvp) 
 {
     int i, nx0, ny0, nx1, ny1, maxn;
     double vpWidthCM, vpHeightCM;
@@ -233,10 +394,10 @@ SEXP L_segments(SEXP x0, SEXP y0, SEXP x1, SEXP y1, SEXP currentvp)
      */
     for (i=0; i<maxn; i++) {
 	double xx0, yy0, xx1, yy1;
-	transformLocn(x0, y0, i, vpc,
+	transformLocn(x0, y0, i, vpc, REAL(fontsize)[0], REAL(lineheight)[0],
 		      vpWidthCM, vpHeightCM,
 		      dd, transform, &xx0, &yy0);
-	transformLocn(x1, y1, i, vpc,
+	transformLocn(x1, y1, i, vpc, REAL(fontsize)[0], REAL(lineheight)[0],
 		      vpWidthCM, vpHeightCM,
 		      dd, transform, &xx1, &yy1);
 	GLine(xx0, yy0, xx1, yy1, INCHES, dd);
@@ -246,14 +407,12 @@ SEXP L_segments(SEXP x0, SEXP y0, SEXP x1, SEXP y1, SEXP currentvp)
     return R_NilValue;
 }
 
-/* We are assuming here that the R code has checked that 
- * x, y, w, and h are all unit objects and that vp is a viewport
- */
-SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h,
-	    SEXP just, SEXP border, SEXP fill, 
-	    SEXP currentvp) 
+SEXP L_polygon(SEXP x, SEXP y,  
+	       SEXP border, SEXP fill, 
+	       SEXP fontsize, SEXP lineheight, SEXP currentvp)
 {
-    double xx, yy, ww, hh;
+    int i, nx;
+    double *xx, *yy;
     double vpWidthCM, vpHeightCM;
     double rotationAngle;
     LViewportContext vpc;
@@ -265,18 +424,103 @@ SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h,
 			 &vpWidthCM, &vpHeightCM, 
 			 transform, &rotationAngle);
     getViewportContext(currentvp, &vpc);
-    transformLocn(x, y, 0, vpc,
-		  vpWidthCM, vpHeightCM,
-		  dd,
-		  transform,
-		  &xx, &yy);
-    transformDimn(w, h, 0, vpc,
-		  vpWidthCM, vpHeightCM,
-		  dd,
-		  rotationAngle,
-		  &ww, &hh);
-    xx = justifyX(xx, ww, INTEGER(just)[0]);
-    yy = justifyY(yy, hh, INTEGER(just)[1]);
+    nx = unitLength(x); 
+    /* Convert the x and y values to CM locations */
+    xx = (double *) R_alloc(nx + 1, sizeof(double));
+    yy = (double *) R_alloc(nx + 1, sizeof(double));
+    for (i=0; i<nx; i++) {
+	transformLocn(x, y, i, vpc, REAL(fontsize)[0], REAL(lineheight)[0],
+		      vpWidthCM, vpHeightCM,
+		      dd,
+		      transform,
+		      &(xx[i]), &(yy[i]));
+    }
+    /* Indicate to the device that drawing is about to begin */
+    GMode(1, dd);
+    /* FIXME:  Need to check for NaN's and NA's
+     */
+    GPolygon(nx, xx, yy, INCHES, 
+	     INTEGER(FixupCol(fill, NA_INTEGER))[0], 
+	     INTEGER(FixupCol(border, NA_INTEGER))[0], dd);
+    /* Indicate to the device that drawing has finished */
+    GMode(0, dd);
+    return R_NilValue;
+}
+
+SEXP L_circle(SEXP x, SEXP y, SEXP r,
+	      SEXP border, SEXP fill, 
+	      SEXP fontsize, SEXP lineheight, SEXP currentvp)
+{
+    int i, nx, nr;
+    double xx, yy, rr1, rr2, rr;
+    double vpWidthCM, vpHeightCM;
+    double rotationAngle;
+    LViewportContext vpc;
+    LTransform transform;
+    /* Get the current device 
+     */
+    DevDesc *dd = CurrentDevice();
+    getViewportTransform(currentvp, dd, 
+			 &vpWidthCM, &vpHeightCM, 
+			 transform, &rotationAngle);
+    getViewportContext(currentvp, &vpc);
+    nx = unitLength(x); 
+    nr = unitLength(r);
+    /* FIXME:  Need to check for NaN's and NA's
+     */
+    /* Indicate to the device that drawing is about to begin */
+    GMode(1, dd);
+    for (i=0; i<nx; i++) {
+	transformLocn(x, y, i, vpc, REAL(fontsize)[0], REAL(lineheight)[0],
+		      vpWidthCM, vpHeightCM,
+		      dd,
+		      transform,
+		      &xx, &yy);
+	/* These two will give the same answer unless r is in "native",
+	 * "npc", or some other relative units;  in those cases, just
+	 * take the smaller of the two values.
+	 */
+	rr1 = transformWidthtoINCHES(r, i % nr, vpc, 
+				     REAL(fontsize)[0], REAL(lineheight)[0],
+				     vpWidthCM, vpHeightCM,
+				     dd);
+	rr2 = transformHeighttoINCHES(r, i % nr, vpc, 
+				      REAL(fontsize)[0], REAL(lineheight)[0],
+				      vpWidthCM, vpHeightCM,
+				      dd);
+	rr = fmin2(rr1, rr2);
+	GCircle(xx, yy, INCHES, rr, 
+		INTEGER(FixupCol(fill, NA_INTEGER))[0], 
+		INTEGER(FixupCol(border, NA_INTEGER))[0], dd);
+    }
+    /* Indicate to the device that drawing has finished */
+    GMode(0, dd);
+    return R_NilValue;
+}
+
+/* We are assuming here that the R code has checked that 
+ * x, y, w, and h are all unit objects and that vp is a viewport
+ */
+SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h, SEXP just,
+	    SEXP border, SEXP fill, 
+	    SEXP fontsize, SEXP lineheight, SEXP currentvp) 
+{
+    double xx, yy, ww, hh;
+    double vpWidthCM, vpHeightCM;
+    double rotationAngle;
+    int i, nx;
+    LViewportContext vpc;
+    LTransform transform;
+    /* Get the current device 
+     */
+    DevDesc *dd = CurrentDevice();
+    getViewportTransform(currentvp, dd, 
+			 &vpWidthCM, &vpHeightCM, 
+			 transform, &rotationAngle);
+    getViewportContext(currentvp, &vpc);
+    /* FIXME:  Need to check for x, y, w, h all same length
+     */
+    nx = unitLength(x); 
     /* FIXME: Force a clip - I think there is a bug in GRect which means 
      * that GClip is not called when the rect is completely within 
      * the clipping region.  This is masked in normal graphics
@@ -298,50 +542,97 @@ SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h,
     GForceClip(dd);
     /* Indicate to the device that drawing is about to begin */
     GMode(1, dd);
-    /* FIXME:  Need to check for NaN's and NA's
-     */
-    /* If the total rotation angle is zero then we can draw a 
-     * rectangle as the devices understand rectangles
-     * Otherwise we have to draw a polygon equivalent.
-     */
-    if (rotationAngle == 0) {
-	GRect(xx, yy, xx + ww, yy + hh, INCHES, 
-	      INTEGER(FixupCol(fill, NA_INTEGER))[0], 
-	      INTEGER(FixupCol(border, NA_INTEGER))[0], dd);
-    } else {
-	/* We have the bottom-left and top-right corners but we have to
-	 * do a little bit of work to figure out where the other
-	 * corners of the rectangle are.
-	 */
-	double xxx[5], yyy[5];
-	double w1, h1, w2, h2;
-	SEXP temp = unit(0, L_INCHES);
-	transformDimn(w, temp, 0, vpc,
+    for (i=0; i<nx; i++) {
+	transformLocn(x, y, i, vpc, REAL(fontsize)[0], REAL(lineheight)[0],
 		      vpWidthCM, vpHeightCM,
 		      dd,
-		      rotationAngle,
-		      &w1, &h1);
-	transformDimn(temp, h, 0, vpc,
-		      vpWidthCM, vpHeightCM,
-		      dd,
-		      rotationAngle,
-		      &w2, &h2);
-	xxx[0] = xx;       yyy[0] = yy;
-	xxx[1] = xx + w1;  yyy[1] = yy + h1;
-	xxx[2] = xx + ww;  yyy[2] = yy + hh;
-	xxx[3] = xx + w2;  yyy[3] = yy + h2;
-	xxx[4] = xx;       yyy[4] = yy;
-	/* Do separate fill and border to avoid border being 
-	 * drawn on clipping boundary when there is a fill
+		      transform,
+		      &xx, &yy);
+	ww = transformWidthtoINCHES(w, i, vpc, 
+				    REAL(fontsize)[0], REAL(lineheight)[0],
+				    vpWidthCM, vpHeightCM,
+				    dd);
+	hh = transformHeighttoINCHES(h, i, vpc, 
+				     REAL(fontsize)[0], REAL(lineheight)[0],
+				     vpWidthCM, vpHeightCM,
+				     dd);
+	/* FIXME:  Need to check for NaN's and NA's
 	 */
-	if (!isNull(fill))
-	    GPolygon(5, xxx, yyy, INCHES, 
-		     INTEGER(FixupCol(fill, NA_INTEGER))[0], 
-		     NA_INTEGER, dd);
-	if (!isNull(border))
-	    GPolygon(5, xxx, yyy, INCHES, 
-		     NA_INTEGER,
-		     INTEGER(FixupCol(border, NA_INTEGER))[0], dd);
+	/* If the total rotation angle is zero then we can draw a 
+	 * rectangle as the devices understand rectangles
+	 * Otherwise we have to draw a polygon equivalent.
+	 */
+	if (rotationAngle == 0) {
+	    xx = justifyX(xx, ww, INTEGER(just)[0]);
+	    yy = justifyY(yy, hh, INTEGER(just)[1]);
+	    GRect(xx, yy, xx + ww, yy + hh, INCHES, 
+		  INTEGER(FixupCol(fill, NA_INTEGER))[0], 
+		  INTEGER(FixupCol(border, NA_INTEGER))[0], dd);
+	} else {
+	    /* We have to do a little bit of work to figure out where the 
+	     * corners of the rectangle are.
+	     */
+	    double xxx[5], yyy[5], xadj, yadj;
+	    double dw, dh;
+	    SEXP temp = unit(0, L_INCHES);
+	    SEXP www, hhh;
+	    /* Find bottom-left location */
+	    justification(ww, hh, INTEGER(just)[0], INTEGER(just)[1], 
+			  &xadj, &yadj);
+	    www = unit(xadj, L_INCHES);
+	    hhh = unit(yadj, L_INCHES);
+	    transformDimn(www, hhh, 0, vpc, 
+			  REAL(fontsize)[0], REAL(lineheight)[0],
+			  vpWidthCM, vpHeightCM,
+			  dd, rotationAngle,
+			  &dw, &dh);
+	    xxx[0] = xx + dw;
+	    yyy[0] = yy + dh;
+	    /* Find top-left location */
+	    www = temp;
+	    hhh = unit(hh, L_INCHES);
+	    transformDimn(www, hhh, 0, vpc, 
+			  REAL(fontsize)[0], REAL(lineheight)[0],
+			  vpWidthCM, vpHeightCM,
+			  dd, rotationAngle,
+			  &dw, &dh);
+	    xxx[1] = xxx[0] + dw;
+	    yyy[1] = yyy[0] + dh;
+	    /* Find top-right location */
+	    www = unit(ww, L_INCHES);
+	    hhh = unit(hh, L_INCHES);
+	    transformDimn(www, hhh, 0, vpc, 
+			  REAL(fontsize)[0], REAL(lineheight)[0],
+			  vpWidthCM, vpHeightCM,
+			  dd, rotationAngle,
+			  &dw, &dh);
+	    xxx[2] = xxx[0] + dw;
+	    yyy[2] = yyy[0] + dh;
+	    /* Find bottom-right location */
+	    www = unit(ww, L_INCHES);
+	    hhh = temp;
+	    transformDimn(www, hhh, 0, vpc, 
+			  REAL(fontsize)[0], REAL(lineheight)[0],
+			  vpWidthCM, vpHeightCM,
+			  dd, rotationAngle,
+			  &dw, &dh);
+	    xxx[3] = xxx[0] + dw;
+	    yyy[3] = yyy[0] + dh;
+	    /* Close the polygon */
+	    xxx[4] = xxx[0];
+	    yyy[4] = yyy[0];
+	    /* Do separate fill and border to avoid border being 
+	     * drawn on clipping boundary when there is a fill
+	     */
+	    if (!isNull(fill))
+		GPolygon(5, xxx, yyy, INCHES, 
+			 INTEGER(FixupCol(fill, NA_INTEGER))[0], 
+			 NA_INTEGER, dd);
+	    if (!isNull(border))
+		GPolygon(5, xxx, yyy, INCHES, 
+			 NA_INTEGER,
+			 INTEGER(FixupCol(border, NA_INTEGER))[0], dd);
+	}
     }
     /* Indicate to the device that drawing has finished */
     GMode(0, dd);
@@ -349,7 +640,8 @@ SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h,
 }
 
 SEXP L_text(SEXP label, SEXP x, SEXP y, SEXP just, 
-	    SEXP rot, SEXP checkOverlap, SEXP currentvp)
+	    SEXP rot, SEXP checkOverlap, 
+	    SEXP fontsize, SEXP lineheight, SEXP currentvp)
 {
     int i, nx, ny;
     double *xx, *yy;
@@ -379,7 +671,7 @@ SEXP L_text(SEXP label, SEXP x, SEXP y, SEXP just,
     xx = (double *) R_alloc(nx, sizeof(double));
     yy = (double *) R_alloc(nx, sizeof(double));
     for (i=0; i<nx; i++) {
-	transformLocn(x, y, i, vpc,
+	transformLocn(x, y, i, vpc, REAL(fontsize)[0], REAL(lineheight)[0],
 		      vpWidthCM, vpHeightCM,
 		      dd,
 		      transform,
@@ -425,9 +717,9 @@ void myGSymbol(double x, double y, int coords, int pch, int col, int bg,
 	       double GSTR_0, DevDesc *dd);
 
 SEXP L_points(SEXP x, SEXP y, SEXP pch, SEXP size, SEXP col, SEXP bg,
-	      SEXP currentvp)
+	      SEXP fontsize, SEXP lineheight, SEXP currentvp)
 {
-    int i, nx;
+    int i, nx, npch;
     /*    double *xx, *yy;*/
     double *xx, *yy;
     double vpWidthCM, vpHeightCM;
@@ -443,27 +735,32 @@ SEXP L_points(SEXP x, SEXP y, SEXP pch, SEXP size, SEXP col, SEXP bg,
 			 transform, &rotationAngle);
     getViewportContext(currentvp, &vpc);
     nx = unitLength(x); 
+    npch = LENGTH(pch);
     /* Convert the x and y values to CM locations */
     xx = (double *) R_alloc(nx, sizeof(double));
     yy = (double *) R_alloc(nx, sizeof(double));
     for (i=0; i<nx; i++) {
-	transformLocn(x, y, i, vpc,
+	transformLocn(x, y, i, vpc, REAL(fontsize)[0], REAL(lineheight)[0],
 		      vpWidthCM, vpHeightCM,
 		      dd,
 		      transform,
 		      &(xx[i]), &(yy[i]));
     }
     symbolSize = transformWidthtoINCHES(size, 0, vpc, 
+					REAL(fontsize)[0], REAL(lineheight)[0],
 					vpWidthCM, vpHeightCM, dd);
     /* Indicate to the device that drawing is about to begin */
     GMode(1, dd);
     for (i=0; i<nx; i++)
 	if (R_FINITE(xx[i]) && R_FINITE(yy[i]))
-	    /* FIXME:  Does not handle vector pch yet */
 	    /* FIXME:  The symbols will not respond to viewport
 	     * rotations !!!
+	     * I've got myGSymbol because I want to be able to
+	     * use a unit to specify the size of symbols rather
+	     * than just cex
 	     */
-	    myGSymbol(xx[i], yy[i], INCHES, INTEGER(FixupPch(pch, 1))[0], 
+	    myGSymbol(xx[i], yy[i], INCHES, 
+		      INTEGER(FixupPch(pch, 1))[i % npch], 
 		      INTEGER(FixupCol(col, 1))[0], 
 		      INTEGER(FixupCol(bg, 1))[0],
 		      symbolSize,

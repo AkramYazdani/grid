@@ -1,8 +1,10 @@
 Grid                     Grid Graphics
+absolute.size            Absolute Size of a Grob
+convertNative            Convert a Unit Object to Native units
 grid.current.viewport    Get the Default Grid Viewport
 gpar                     Function to produce a Graphical Parameter Object
 grid-internal            Internal Grid Functions
-grid.clear               Clear a Grid Viewport
+grid.circle              Draw a Circle
 grid.collection          Create a Coherent Group of Grid Graphical
                          Objects
 grid.copy                Make a Copy of a Grid Graphical Object
@@ -14,10 +16,13 @@ grid.get                 Get the Contents of a Grid Graphical Object
 grid.grill               Draw a Grill
 grid.grob                Create a Grid Graphical Object
 grid.layout              Create a Grid Layout
+grid.line.to             Draw a Line to a Specified Position
 grid.lines               Draw Lines in a Grid Viewport
+grid.move.to             Move to a Specified Position
 grid.newpage             Move to a New Page on a Grid Device
 grid.pack                Pack an Object within a Frame
 grid.points              Draw Data Symbols in a Grid Viewport
+grid.polygon             Draw a Polygon
 grid.rect                Draw a rectangle in a Grid Viewport
 grid.segments            Draw Line Segments in a Grid Viewport
 grid.set                 Set the Contents of a Grid Graphical Object
@@ -26,10 +31,11 @@ grid.show.viewport       Draw a Diagram of a Grid Viewport
 grid.text                Draw Text in a Grid Viewport
 grid.xaxis               Draw an X-Axis on a Grid Viewport
 grid.yaxis               Draw a Y-Axis on a Grid Viewport
-grill                    Draw a Grill
+height.details           Height of a Grob
 pop.viewport             Pop a Viewport off the Grid Viewport Stack
 push.viewport            Push a Viewport onto the Grid Viewport Stack
 unit                     Function to Create a Unit Object
 unit.c                   Combine Unit Objects
 unit.length              Length of a Unit Object
 viewport                 Create a Grid Viewport
+width.details            Width of a Grob

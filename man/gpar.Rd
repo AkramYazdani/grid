@@ -30,6 +30,7 @@ gpar(...)
 \examples{
 gpar(col="red")
 gpar(col="blue", lty="solid", lwd=3, fontsize=16)
+grid.newpage()
 vp <- viewport(w=.8, h=.8, gp=gpar(col="blue"))
 grid.collection(grid.rect(gp=gpar(col="red"), draw=F),
                 grid.text("The rect is its own colour\nbut this text is the colour\nset by the collection", draw=F),

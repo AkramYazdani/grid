@@ -1,12 +1,3 @@
-# FIXME:  All of these functions are calling par(xpd=NA, ...)
-# Only the "bottom level" calls need to;  can I easily identify which
-# are the "bottom level" ones ?
-
-# NOTE that the valid.* functions are ONLY called just before
-# parameters are passed in a .Call.graphics
-# If you call a valid.* function on an already-validated unit or
-# whatever, it will fail.
-
 # FIXME:  all grid functions should check that .grid.started is TRUE
 .grid.started <- FALSE
 .grid.saved.pars <- NULL
@@ -19,13 +10,17 @@
 # the user need never know about it.
 # Simple usage means:
 #     library(grid), <grid drawing>[, detach(package:grid)]
-grid.start <- function() {
+# Set newpage=FALSE if you want to do grid graphics without advancing a page
+grid.start <- function(newpage=TRUE) {
   # NOTE that this starts a device as a side-effect
   .grid.saved.pars <<- par(xpd=NA, mfrow=c(1, 1),
                               oma=rep(0, 4), mar=rep(0, 4))
   # Install some default par settings
   set.gpar(gpar(fontsize=10, lineheight=1.2))
-  grid.newpage()
+  if (newpage)
+    grid.newpage()
+  else
+    .Call("L_initDevice")
   .grid.started <<- TRUE
 }
 
@@ -39,20 +34,6 @@ grid.stop <- function() {
   .grid.started <<- FALSE
 }
 
-# Set the grid "current viewport"
-# This viewport may have multiple parents stacked on top of it
-# NOTE that this operation gets recorded in the ldisplay.list
-set.viewport <- function(vp, recording=TRUE) {
-  # valid.viewport will let a NULL viewport through and we do
-  # NOT want that to happen here
-  if (is.null(vp))
-    stop("Illegal current viewport setting")
-  .Call.graphics("L_setviewport", vp)
-  .grid.viewport <<- vp
-  if (recording)
-    record(vp)
-}
-
 grid.init.viewport.stack <- function(recording=TRUE) {
   # Create a viewport WITH default cur.lineheight and cur.fontsize
   # This is the top-level viewport
@@ -62,89 +43,78 @@ grid.init.viewport.stack <- function(recording=TRUE) {
   # WITHOUT going via push/pop.viewport
   # Hence we must set its cur.lineheight/fontsize
   vp <- viewport()
+  if (recording)
+    record(vp)
   vp$cur.lineheight <- 1.2
   vp$cur.fontsize <- 10
-  set.viewport(vp, recording=recording)
+  # NOTE that L_setviewport does 
+  #   .grid.viewport <<- vp
+  .Call.graphics("L_setviewport", vp, FALSE)
 }
 
-stack.viewports <- function(vps) {
-  if (length(vps) == 0)
-    vp <- NULL
-  else {
-    vp <- vps[[length(vps)]]
-    if (is.null(vp)) {
-      if (length(vps) > 1)
-        vp <- stack.viewports(vps[1:(length(vps)-1)])
-    }
-    else {
-      if (length(vps) > 1)
-        vp$parent <- stack.viewports(vps[1:(length(vps)-1)])
-    }
-  }
-  # Enforce viewport's gpar settings
-  # DON'T reinforce the gpar settings for the previously current viewport
-  # (length(vps) == 1)
-  if (!is.null(vp) & length(vps) != 1) {
-    set.gpar(vp$gp)
-    # Later, we will query the viewport to ask "what were the gpar
-    # settings when you were drawn".  This is NOT the same as asking
-    # the viewport for its gpar settings because the viewport may only
-    # specify some gpar values.  So we record the default settings
-    # we will need to know about
-    vp$cur.fontsize <- par("ps")
-    vp$cur.lineheight <- get.gpar("lineheight")
-  }
-  vp
+push.vp <- function(vps, index, len, recording) {
+  vp <- vps[[index]]
+  if (is.null(vp))
+    stop("Illegal to push NULL viewport")
+  # Record on the display list
+  if (recording)
+    record(vp)
+  # Enforce gpar settings
+  set.gpar(vp$gp)
+  # Later, we will query the viewport to ask "what were the gpar
+  # settings when you were drawn".  This is NOT the same as asking
+  # the viewport for its gpar settings because the viewport may only
+  # specify some gpar values.  So we record the default settings
+  # we will need to know about
+  vp$cur.fontsize <- par("ps")
+  vp$cur.lineheight <- get.gpar("lineheight")
+  # Calculate viewport transform 
+  # NOTE that we will have modified "vp" within L_setviewport
+  # to record the current transformation and layout
+  # NOTE also that L_setviewport does 
+  #   vp$parent <- .grid.viewport
+  # ... calc transform ...
+  #   .grid.viewport <<- vp
+  .Call.graphics("L_setviewport", vp, TRUE)
+  # Push further viewports if required
+  if (index < len) 
+    push.vp(vps, index+1, len, recording)
 }
 
-# Push a viewport onto the viewport stack
-      # NOTE that we must do setting of gpars here so that
-      # the gpars of viewports and grobs are correctly
-      # intertwined
 push.viewport <- function(..., recording=TRUE) {
-  # FIXME:  should probably be doing this internally because
-  # the user can get at .grid.viewport
-  # Check special case where ... is single NULL viewport
   if (missing(...))
     stop("Must specify at least one viewport")
   else {
     vps <- list(...)
-    if (length(vps) != 1 || !is.null(vps[[1]])) {
-      vps <- list(.grid.viewport, ...)
-      vp <- stack.viewports(vps)
-      set.viewport(vp, recording)
-    }
+    nvp <- length(vps)
+    push.vp(vps, 1, nvp, recording)
   }
 }
 
-unstack.viewports <- function(startvp, vps) {
-  if (!is.null(vps[[1]])) {
-    unset.gpar(vps[[1]]$gp)
-    startvp <- startvp$parent
-  }
-  if (length(vps) > 1)
-    vp <- unstack.viewports(startvp, vps[2:length(vps)])
-  else
-    vp <- startvp
-  vp
+pop.vp <- function(last.one, recording) {
+  vp <- .grid.viewport
+  # Fail if trying to pop top-level viewport
+  if (is.null(vp$parent))
+    stop("Illegal to pop top-level viewport")
+  # Unset gpar settings
+  unset.gpar(vp$gp)
+  # Allow for recalculation of viewport transform if necessary
+  # NOTE that L_checkviewport does
+  #   new.vp <- .grid.viewport$parent
+  # ... recalc viewport transform if necessary ...
+  #   .grid.viewport <<- new.vp
+  .Call.graphics("L_unsetviewport", last.one)
 }
 
-# Pop a viewport off the viewport stack
-      # NOTE that we must do unsetting of gpars here so that
-      # the gpars of viewports and grobs are correctly
-      # intertwined
-pop.viewport <- function(..., recording=TRUE) {
-  # FIXME:  should probably be doing this internally because
-  # the user can get at .grid.viewport
-  # Check special case where ... is single NULL viewport
-  if (missing(...))
-    stop("Must specify at least one viewport")
+pop.viewport <- function(n=1, recording=TRUE) {
+  if (n < 1)
+    stop("Must pop at least one viewport")
   else {
-    vps <- list(...)
-    if (length(vps) != 1 || !is.null(vps[[1]])) {
-      vp <- unstack.viewports(.grid.viewport, vps)
-      set.viewport(vp, recording)
-    }
+    for (i in 1:n)
+      pop.vp(i==n, recording)
+    # Record on the display list
+    if (recording)
+      record(n)
   }
 }
 
@@ -223,6 +193,13 @@ grid.display.list <- function(on=TRUE) {
 record <- function(x) {
   if (.grid.display.list.on)
     UseMethod("record")
+}
+
+# When there is a pop.viewport, the number of viewports popped
+# gets put on the display list
+record.default <- function(n) {
+  inc.display.list()
+  .grid.display.list[[.grid.display.list.index]] <<- n
 }
 
 record.grob <- function(grob) {

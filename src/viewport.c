@@ -73,6 +73,30 @@ SEXP viewportParent(SEXP vp) {
     return getListElement(vp, "parent");
 }
 
+SEXP viewportCurrentTransform(SEXP vp) {
+    return getListElement(vp, "cur.trans");
+}
+
+SEXP viewportCurrentLayoutWidths(SEXP vp) {
+    return getListElement(vp, "cur.widths");
+}
+
+SEXP viewportCurrentLayoutHeights(SEXP vp) {
+    return getListElement(vp, "cur.heights");
+}
+
+SEXP viewportCurrentWidthCM(SEXP vp) {
+    return getListElement(vp, "cur.width.cm");
+}
+
+SEXP viewportCurrentHeightCM(SEXP vp) {
+    return getListElement(vp, "cur.height.cm");
+}
+
+SEXP viewportCurrentRotation(SEXP vp) {
+    return getListElement(vp, "cur.rotation");
+}
+
 void fillViewportLocationFromViewport(SEXP vp, LViewportLocation *vpl) 
 {
     vpl->x = viewportX(vp);
@@ -115,19 +139,28 @@ void copyViewportContext(LViewportContext vpc1, LViewportContext *vpc2)
  * Device in INCHES.
  * The reason for working in INCHES is because we want to be able to
  * do rotations as part of the transformation.
+ * If "incremental" is true, then we just work from the "current"
+ * values of the parent.  Otherwise, we have to recurse and recalculate
+ * everything from scratch.
  */
-void viewportTransform(SEXP vp, SEXP parent, DevDesc *dd,
-		       double *vpWidthCM, double *vpHeightCM,
-		       LTransform transform, double *rotationAngle)
+void calcViewportTransform(SEXP vp, SEXP parent, Rboolean incremental,
+			   DevDesc *dd)
 {
+    int i, j;
+    double vpWidthCM, vpHeightCM, rotationAngle;
     double parentWidthCM, parentHeightCM;
     double xINCHES, yINCHES;
     double xadj, yadj;
     double parentAngle;
     LViewportLocation vpl;
-    LViewportContext parentContext;
+    LViewportContext vpc, parentContext;
     LTransform thisLocation, thisRotation, thisJustification, thisTransform;
-    LTransform tempTransform, parentTransform;
+    LTransform tempTransform, parentTransform, transform;
+    SEXP currentWidthCM, currentHeightCM, currentRotation;
+    SEXP currentTransform;
+    /* This should never be true when we are doing an incremental
+     * calculation
+     */
     if (isNull(parent)) {
 	/* We have a top-level viewport; the parent is the device
 	 */
@@ -157,13 +190,20 @@ void viewportTransform(SEXP vp, SEXP parent, DevDesc *dd,
 	parentAngle = 0;
 	fillViewportLocationFromViewport(vp, &vpl);
     } else {
-	/* Get parent transform (and widthCM and heightCM)
+	/* Get parent transform (etc ...)
+	 * If necessary, recalculate the parent transform (etc ...)
 	 */
-	viewportTransform(parent, viewportParent(parent), dd,
-			  &parentWidthCM, &parentHeightCM,
-			  parentTransform, &parentAngle);
+	if (!incremental)
+	    calcViewportTransform(parent, viewportParent(parent), 0, dd);
 	/* Get information required to transform viewport location
 	 */
+	parentWidthCM = REAL(viewportCurrentWidthCM(parent))[0];
+	parentHeightCM = REAL(viewportCurrentHeightCM(parent))[0];
+	parentAngle = REAL(viewportCurrentRotation(parent))[0];
+	for (i=0; i<3; i++)
+	    for (j=0; j<3; j++)
+		parentTransform[i][j] = 
+		    REAL(viewportCurrentTransform(parent))[i +3*j];
 	fillViewportContextFromViewport(parent, &parentContext);
 	/* In order for the vp to get its vpl from a layout
 	 * it must have specified a layout.pos and the parent
@@ -178,34 +218,42 @@ void viewportTransform(SEXP vp, SEXP parent, DevDesc *dd,
 	else
 	    calcViewportLocationFromLayout(viewportLayoutPosRow(vp),
 					   viewportLayoutPosCol(vp),
-					   viewportLayout(parent),
-					   parentWidthCM,
-					   parentHeightCM,
-					   parentContext,
-					   dd,
+					   parent,
 					   &vpl);
     }
+    /* NOTE that we are not doing a transformLocn here because
+     * we just want locations and dimensions (in INCHES) relative to 
+     * the parent, NOT relative to the device.
+     */
     /* First, convert the location of the viewport into CM
      */
     xINCHES = transformXtoINCHES(vpl.x, 0, parentContext,
+				 viewportFontSize(vp),
+				 viewportLineHeight(vp),
 				 parentWidthCM, parentHeightCM, 
 				 dd);
     yINCHES = transformYtoINCHES(vpl.y, 0, parentContext,
+				 viewportFontSize(vp),
+				 viewportLineHeight(vp),
 				 parentWidthCM, parentHeightCM, 
 				 dd);
     /* Calculate the width and height of the viewport in CM too
      * so that any viewports within this one can do transformations
      */
-    *vpWidthCM = transformWidthtoINCHES(vpl.width, 0, parentContext,
-					parentWidthCM, parentHeightCM,
-					dd)*2.54;
-    *vpHeightCM = transformHeighttoINCHES(vpl.height, 0, parentContext,
-					  parentWidthCM, 
-					  parentHeightCM, 
-					  dd)*2.54;
+    vpWidthCM = transformWidthtoINCHES(vpl.width, 0, parentContext,
+				       viewportFontSize(vp),
+				       viewportLineHeight(vp),
+				       parentWidthCM, parentHeightCM,
+				       dd)*2.54;
+    vpHeightCM = transformHeighttoINCHES(vpl.height, 0, parentContext,
+					 viewportFontSize(vp),
+					 viewportLineHeight(vp),
+					 parentWidthCM, 
+					 parentHeightCM, 
+					 dd)*2.54;
     /* Determine justification required
      */
-    justification(*vpWidthCM, *vpHeightCM, vpl.hjust, vpl.vjust,
+    justification(vpWidthCM, vpHeightCM, vpl.hjust, vpl.vjust,
 		  &xadj, &yadj);
     /* Next, produce the transformation to add the location of
      * the viewport to the location.
@@ -229,7 +277,32 @@ void viewportTransform(SEXP vp, SEXP parent, DevDesc *dd,
     multiply(thisTransform, parentTransform, transform);
     /* Sum up the rotation angles
      */
-    *rotationAngle = parentAngle + viewportAngle(vp);
+    rotationAngle = parentAngle + viewportAngle(vp);
+    /* Finally, allocate the rows and columns for this viewport's
+     * layout if it has one
+     */
+    if (!isNull(viewportLayout(vp))) {
+	fillViewportContextFromViewport(vp, &vpc);
+	calcViewportLayout(vp, vpWidthCM, vpHeightCM, vpc, dd);
+    }
+    /* Record all of the answers in the viewport
+     * (the layout calculations are done within calcViewportLayout)
+     */
+    PROTECT(currentWidthCM = allocVector(REALSXP, 1));
+    REAL(currentWidthCM)[0] = vpWidthCM;
+    PROTECT(currentHeightCM = allocVector(REALSXP, 1));
+    REAL(currentHeightCM)[0] = vpHeightCM;
+    PROTECT(currentRotation = allocVector(REALSXP, 1));
+    REAL(currentRotation)[0] = rotationAngle;
+    PROTECT(currentTransform = allocMatrix(REALSXP, 3, 3));
+    for (i=0; i<3; i++)
+	for (j=0; j<3; j++)
+	    REAL(currentTransform)[i + 3*j] = transform[i][j];
+    setListElement(vp, "cur.width.cm", currentWidthCM);
+    setListElement(vp, "cur.height.cm", currentHeightCM);
+    setListElement(vp, "cur.rotation", currentRotation);
+    setListElement(vp, "cur.trans", currentTransform);
+    UNPROTECT(4);
 }
 
 

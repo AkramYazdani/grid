@@ -12,7 +12,8 @@
 grid.pack(frame, grob, grob.name="", draw=TRUE, side=NULL,
           row=NULL, row.before=NULL, row.after=NULL,
           col=NULL, col.before=NULL, col.after=NULL,
-          width=NULL, height=NULL, border=NULL)
+          width=NULL, height=NULL,
+          force.width=FALSE, force.height=FALSE, border=NULL)
 }
 %- maybe also `usage' for other objects documented here.
 \arguments{
@@ -37,7 +38,16 @@ grid.pack(frame, grob, grob.name="", draw=TRUE, side=NULL,
   \item{width}{ Specifies the width of the column that the object is
     added to (rather than allowing the width to be taken from the object). }
   \item{height}{ Specifies the height of the row that the object is
-    added to (rather than allowing the height to be taken from the object). }
+    added to (rather than allowing the height to be taken from the
+    object). }
+  \item{force.width}{ A logical value indicating whether the width of
+    the column that the grob is being packed into should be EITHER the
+    width specified in the call to \code{grid.pack} OR the maximum of
+    that width and the pre-existing width. }
+  \item{force.height}{ A logical value indicating whether the height of
+    the column that the grob is being packed into should be EITHER the
+    height specified in the call to \code{grid.pack} OR the maximum of
+    that height and the pre-existing height. }
   \item{border}{ A \code{unit} object of length 4 indicating the borders
     around the object. }
 }
@@ -53,14 +63,12 @@ grid.pack(frame, grob, grob.name="", draw=TRUE, side=NULL,
   is specified.
 }
 \value{
-  None (?)
+  None.
 }
 \author{ Paul Murrell }
-\section{WARNING }{ The only safe way to pack objects as yet is to
-specify \code{side="right"} or \code{side="top"}. } 
-
 \seealso{\code{\link{grid.frame}} }
 
 \examples{
 }
 \keyword{ dplot }%-- one or more ...
+

@@ -9,13 +9,16 @@
   use \code{grid.pack} to pack objects into the frame.
 }
 \usage{
-grid.frame(vp=NULL, gp=gpar(), draw=TRUE)
+grid.frame(layout=NULL, vp=NULL, gp=gpar(), draw=TRUE)
 }
 %- maybe also `usage' for other objects documented here.
 \arguments{
+  \item{layout}{ A Grid layout, or NULL. This can be used to initialise
+    the frame with a number of rows and columns, with initial widths
+    and heights, etc. }
   \item{vp}{ An object of class \code{viewport}, or NULL. }
   \item{gp}{ An object of class \code{gpar};  typically the output from
-  a call to the function \code{gpar}.}
+    a call to the function \code{gpar}.}
 \item{draw}{ Should the frame be drawn.  Nothing will actually be
   drawn, but it will put the frame on the display list, which means
   that the output will be dynamically updated as objects are packed
@@ -30,7 +33,7 @@ grid.frame(vp=NULL, gp=gpar(), draw=TRUE)
 \examples{
 grid.newpage()
 gf <- grid.frame()
-grid.pack(gf, grid.rect(draw=FALSE))
+grid.pack(gf, grid.rect(draw=FALSE, gp=gpar(fill="grey")))
 grid.pack(gf, grid.text("hi there", draw=FALSE), side="right")
 }
 \keyword{ dplot }%-- one or more ...

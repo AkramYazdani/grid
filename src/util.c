@@ -17,6 +17,18 @@ SEXP getListElement(SEXP list, char *str)
   return elmt;
 }
 
+void setListElement(SEXP list, char *str, SEXP value) 
+{
+  SEXP names = getAttrib(list, R_NamesSymbol);
+  int i;
+
+  for (i = 0; i < length(list); i++)
+    if(strcmp(CHAR(STRING_ELT(names, i)), str) == 0) {
+      SET_VECTOR_ELT(list, i, value);
+      break;
+    }
+}
+    
 /* The lattice R code checks values to make sure that they are numeric
  * BUT we do not know whether the values are integer or real
  * SO we have to be careful when extracting numeric values.
@@ -159,22 +171,26 @@ void textRect(double x, double y, char *string, double xadj, double yadj,
     double cosrotrad = cos(rotrad);
     double wxbit = xadj*w*cosrotrad;
     double hxbit = yadj*h*sinrotrad;
+    double wxbit2 = (1-xadj)*w*cosrotrad;
+    double hxbit2 = (1-yadj)*h*sinrotrad;
     double wybit = xadj*w*sinrotrad;
     double hybit = yadj*h*cosrotrad;
+    double wybit2 = (1-xadj)*w*sinrotrad;
+    double hybit2 = (1-yadj)*h*cosrotrad;
     x1 = x - wxbit + hxbit;
     y1 = y - wybit - hybit;
-    x2 = x + wxbit + hxbit;
-    y2 = y + wybit - hybit;
-    x3 = x + wxbit - hxbit;
-    y3 = y + wybit + hybit;
+    x2 = x + wxbit2 + hxbit2;
+    y2 = y + wybit2 - hybit2;
+    x3 = x + wxbit2 - hxbit2;
+    y3 = y + wybit2 + hybit2;
     x4 = x - wxbit - hxbit;
     y4 = y - wybit + hybit;
     rect(x1, x2, x3, x4, y1, y2, y3, y4, r);
     /* For debugging, the following prints out an R statement to draw the
      * bounding box
      */
-    /*    Rprintf("\nllines(c(%f, %f, %f, %f, %f), c(%f, %f, %f, %f, %f))\n",
-	  x1, x2, x3, x4, x1, y1, y2, y3, y4, y1); */
+    /*  Rprintf("\ngrid.lines(c(%f, %f, %f, %f, %f), c(%f, %f, %f, %f, %f), default.units=\"inches\")\n",
+	x1, x2, x3, x4, x1, y1, y2, y3, y4, y1); */
 }
         
 /***********************

@@ -6,8 +6,8 @@ recycle.data <- function(data, data.per, max.n) {
   # handled equivalently
   # The test for whether it is only a single value currently
   # consists of a check for mode="character" (i.e., a single
-  # string) or class="viewport" (i.e., a single viewport)
-  if (is.character(data) || is.viewport(data)) 
+  # string) or class="grob" (i.e., a single grob)
+  if (is.character(data) || is.grob(data)) 
     data <- list(data)
   if (data.per)
     n <- max.n
@@ -26,7 +26,7 @@ recycle.data <- function(data, data.per, max.n) {
 # Simple units are of the form `unit(1, "cm")' or `unit(1:3, "cm")' or
 # `unit(c(1,3,6), c("cm", "inch", "npc"))'
 # More complicated units are of the form `unit(1, "string", "a string")'
-# or `unit(1, "viewport", vp)'
+# or `unit(1, "grob", a.grob)'
 unit <- function(x, units, data=NULL) {
   if (!is.numeric(x))
     stop("x must be numeric")
@@ -43,6 +43,16 @@ valid.unit <- function(x, units, data) {
   x
 }
 
+convertNative <- function(unit, dimension="x", type="location") {
+  what <- match(dimension, c("x", "y")) - 1 +
+    2*(match(type, c("location", "dimension")) - 1)
+  if (is.na(what))
+    stop("Invalid dimension or type")
+  .Call("L_convertToNative", unit, as.integer(what),
+        get.gpar("fontsize"), get.gpar("lineheight"),
+        .grid.viewport)
+}
+
 # NOTE: the order of the strings in these conversion functions must
 # match the order of the enums in ../src/grid.h
 .grid.unit.list <- c("npc", "cm", "inches", "lines",
@@ -50,9 +60,11 @@ valid.unit <- function(x, units, data) {
                      "points", "picas", "bigpts",
                      "dida", "cicero", "scaledpts",
                      "strwidth", "strheight",
-                     "vplayoutwidth", "vplayoutheight", "char")
+                     "vplayoutwidth", "vplayoutheight", "char",
+                     "grobwidth", "grobheight",
+                     "mylines", "mychar")
 
-# Make sure that and "str*" and "vplayout*" units have data
+# Make sure that and "str*" and "grob*" units have data
 valid.data <- function(units, data) {
   n <- length(units)
   str.units <- units == "strwidth"
@@ -65,35 +77,24 @@ valid.data <- function(units, data) {
     for (i in (1:n)[str.units])
       if (!(length(data) >= i && is.character(data[[i]])))
         stop("No string supplied for `strheight' unit")
-  # Make sure that a viewport has been specified and that the
-  # viewport has a layout
-  layout.units <- units == "vplayoutwidth"
-  if (any(layout.units != 0))
-    for (i in (1:n)[layout.units]) {
-      if (!(length(data) >= i && is.viewport(data[[i]])))
-        stop("No viewport supplied for `vplayoutwidth' unit")
-      else if (!is.layout(data[[i]]$layout))
-        stop("No layout specified in viewport for `vplayoutwidth' unit")
+  # Make sure that a grob has been specified
+  grob.units <- units == "grobwidth"
+  if (any(grob.units != 0))
+    for (i in (1:n)[grob.units]) {
+      if (!(length(data) >= i && is.grob(data[[i]])))
+        stop("No grob supplied for `grobwidth' unit")
     }
-  layout.units <- units == "vplayoutheight"
-  if (any(layout.units != 0))
-    for (i in (1:n)[layout.units]) {
-      if (!(length(data) >= i && is.viewport(data[[i]])))
-        stop("No viewport supplied for `vplayoutheight' unit")
-      else if (!is.layout(data[[i]]$layout))
-        stop("No layout specified in viewport for `vplayoutheight' unit")
+  grob.units <- units == "grobheight"
+  if (any(grob.units != 0))
+    for (i in (1:n)[grob.units]) {
+      if (!(length(data) >= i && is.grob(data[[i]])))
+        stop("No grob supplied for `grobheight' unit")
     }
   data
 }
 
-# NOTE: the result of match() is an integer, but subtracting 1 converts
-# to real => have to convert back to integer for passing to C code
 valid.units <- function(units) {
-  original <- units
-  int.units <- as.integer(match(units, .grid.unit.list) - 1)
-  if (any(is.na(int.units)))
-    stop(paste("Invalid units:", original))
-  int.units
+  .Call("validUnits", units)
 }
 
 as.character.unit <- function(unit) {
@@ -196,7 +197,6 @@ as.character.unit.list <- function(ul) {
 # These work on any sort of unit object
 #########################
 
-# FIXME:  I am doing my own dispatching here;  should be a generic function
 is.unit <- function(unit) {
   inherits(unit, "unit")
 }
@@ -232,6 +232,8 @@ print.unit <- function(unit) {
   attr(x, "unit") <- units[(index - 1) %% length(units) + 1]
   attr(x, "valid.unit") <- valid.units[(index - 1) %% length(valid.units) + 1]
   # Need to handle vector index for list subsetting
+  # FIXME:
+  # This should be able to just use the [(index-1) %% length(data)+1] too !?
   data.list <- list()
   for (i in index)
     data.list <- c(data.list, list(data[[(i - 1) %% length(data) + 1]]))
@@ -270,6 +272,8 @@ print.unit <- function(unit) {
   if (top && index > this.length)
     stop("Index out of bounds (unit list subsetting)")
   cl <- class(x)
+  # FIXME:
+  # Should be able to use [(index-1) %% length(data)+1] too !?
   result <- vector("list", length(index))
   count <- 1
   for (i in index) {
@@ -364,3 +368,57 @@ unit.length <- function(unit) {
   else
     length(unit)
 }
+
+#########################
+# Function to decide which values in a unit are "absolute" (do not depend
+# on parent's drawing context or size)
+#########################
+
+# Only deals with unit of unit.length() 1
+absolute <- function(unit) {
+  !is.na(match(attr(unit, "unit"),
+               c("cm", "inches", "lines", "null",
+                 "mm", "points", "picas", "bigpts",
+                 "dida", "cicero", "scaledpts",
+                 "strwidth", "strheight", "char",
+                 "mylines", "mychar")))
+}
+
+absolute.units.list <- function(ul) {
+  cl <- class(ul)
+  abs.ul <- lapply(ul, absolute.units)
+  class(abs.ul) <- cl
+  abs.ul
+}
+                                  
+absolute.units.arithmetic <- function(ua) {
+  switch(ua$fname,
+         "+"=unit.arithmetic("+", absolute.units(ua$arg1),
+           absolute.units(ua$arg2)),
+         "-"=unit.arithmetic("-", absolute.units(ua$arg1),
+           absolute.units(ua$arg2)),
+         "*"=unit.arithmetic("*", ua$arg1, absolute.units(ua$arg2)),
+         "min"=unit.arithmetic("min", absolute.units(ua$arg1)),
+         "max"=unit.arithmetic("max", absolute.units(ua$arg1)),
+         "sum"=unit.arithmetic("sum", absolute.units(ua$arg1)))
+}
+
+absolute.units <- function(unit) {
+  if (is.unit.list(unit))
+    absolute.units.list(unit)
+  else if (is.unit.arithmetic(unit))
+    absolute.units.arithmetic(unit)
+  else {
+    n <- unit.length(unit)
+    if (absolute(unit[1]))
+      abs.unit <- unit[1]
+    else
+      abs.unit <- unit(1, "null")
+    if (n == 1)
+      new.unit <- abs.unit
+    else
+      new.unit <- unit.c(abs.unit, absolute.units(unit[2:n]))
+    new.unit
+  }
+}
+                 

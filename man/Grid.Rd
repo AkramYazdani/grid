@@ -16,12 +16,16 @@
   viewport.
 }
 \usage{
-grid.start()
+grid.start(newpage=TRUE)
 grid.stop()
 
 .grid.started
 .grid.saved.pars
 .grid.viewport
+}
+\arguments{
+  \item{newpage}{ A logical value indicating whether the device should
+  move to a new page. }
 }
 %- maybe also `usage' for other objects documented here.
 \details{

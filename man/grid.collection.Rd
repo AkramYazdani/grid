@@ -32,6 +32,7 @@ grid.collection(..., gp=gpar(), draw=T, vp=NULL)
 }
 
 \examples{
+grid.newpage()
 lc <- grid.collection(l1=grid.lines(draw=FALSE),
                       l2=grid.lines(c(.5, .5), draw=FALSE))
 grid.edit(lc, gp=gpar(col="blue"))

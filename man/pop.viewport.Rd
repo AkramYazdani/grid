@@ -10,11 +10,12 @@
   new default viewport.
 }
 \usage{
-pop.viewport(..., recording=TRUE)
+pop.viewport(n=1, recording=TRUE)
 }
 %- maybe also `usage' for other objects documented here.
 \arguments{
-  \item{\dots}{One or more objects of class \code{"viewport"} or NULL.}
+  \item{n}{An integer giving the number of viewports to pop.
+    Defaults to 1.}
   \item{recording}{A logical value to indicate whether the set-viewport
     operation should be recorded on the Grid display list.}
 }

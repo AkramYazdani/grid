@@ -41,7 +41,13 @@ unit(x, units, data=NULL)
     \item{\code{"scaledpts"}}{Scaled Points.  65536 sp = 1 pt.}
     \item{\code{"lines"}}{Lines of text.  Locations and dimensions
       are in terms of multiples of the default text size of the viewport
-      (as specified by the viewport's \code{pointsize}).}
+      (as specified by the viewport's \code{fontsize} and \code{lineheight}).}
+    \item{\code{"mylines"}}{Same as \code{"lines"}, except will be
+      influenced by grob's own gpar settings.}
+    \item{\code{"char"}}{Multiples of nominal font height of the
+      viewport (as specified by the viewport's \code{fontsize}).}
+    \item{\code{"mychar"}}{Same as \code{"char"}, except will be
+      influenced by grob's own gpar settings.}
     \item{\code{"native"}}{Locations and dimensions are relative to
       the viewport's \code{xscale} and \code{yscale}.}
     \item{\code{"snpc"}}{Square Normalised Parent Coordinates.
@@ -56,10 +62,10 @@ unit(x, units, data=NULL)
     \item{\code{"strheight"}}{Multiples of the height of the string
       specified in the \code{data} argument.  The font size is
       determined by the pointsize of the viewport.}
-    \item{\code{"vplayoutwidth"}}{Multiples of the width of the
-      layout of the viewport specified in the \code{data} argument.}
-    \item{\code{"vplayoutheight"}}{Multiples of the height of the
-      layout of the viewport specified in the \code{data} argument.}
+    \item{\code{"grobwidth"}}{Multiples of the width of the grob
+      specified in the \code{data} argument.}
+    \item{\code{"grobheight"}}{Multiples of the height of the grob
+      specified in the \code{data} argument.}
   }
 
   The \code{data} argument must be a list when the \code{unit.length()}

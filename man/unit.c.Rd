@@ -20,5 +20,5 @@ unit.c(...)
  \seealso{
    \code{\link{unit}}.
  }
-\examples{
+\examples{}
 \keyword{ dplot }%-- one or more ...

@@ -17,6 +17,10 @@
 \alias{.unit}
 \alias{.unit.arithmetic}
 \alias{.unit.list}
+\alias{absolute                   }
+\alias{absolute.units            }
+\alias{absolute.units.arithmetic  }
+\alias{absolute.units.list        }
 \alias{as.character.unit}
 \alias{as.character.unit.arithmetic}
 \alias{as.character.unit.list}
@@ -29,11 +33,16 @@
 \alias{current.viewport}
 \alias{draw.all}
 \alias{draw.details}
+\alias{draw.details.circle}
 \alias{draw.details.collection}
+\alias{draw.details.default}
 \alias{draw.details.frame}
 \alias{draw.details.glist}
 \alias{draw.details.lines}
+\alias{draw.details.line.to}
+\alias{draw.details.move.to}
 \alias{draw.details.points}
+\alias{draw.details.polygon}
 \alias{draw.details.rect}
 \alias{draw.details.segments}
 \alias{draw.details.text}
@@ -61,8 +70,19 @@
 \alias{grid.width}
 \alias{height}
 \alias{height.default}
+\alias{height.details.default     }
+\alias{height.details.frame       }
+\alias{height.details.rect        }
+\alias{height.details.text        }
+\alias{height.details.viewport    }
 \alias{height.frame}
 \alias{height.lines}
+\alias{height.post                }
+\alias{height.post.details        }
+\alias{height.post.details.default}
+\alias{height.pre                 }
+\alias{height.pre.details         }
+\alias{height.pre.details.default }
 \alias{height.text}
 \alias{inc.display.list}
 \alias{is.even}
@@ -74,6 +94,8 @@
 \alias{is.unit.arithmetic}
 \alias{is.unit.list}
 \alias{is.viewport}
+\alias{justifyX}
+\alias{justifyY}
 \alias{layout.heights}
 \alias{layout.ncol}
 \alias{layout.nrow}
@@ -97,12 +119,15 @@
 \alias{origin.top}
 \alias{pop.saved.Rpars}
 \alias{pop.saved.gpars}
+\alias{pop.vp}
 \alias{print.grob}
 \alias{print.unit}
 \alias{print.viewport}
 \alias{push.saved.Rpars}
 \alias{push.saved.gpars}
+\alias{push.vp}
 \alias{record}
+\alias{record.default}
 \alias{record.grob}
 \alias{record.viewport}
 \alias{recycle.data}
@@ -121,6 +146,8 @@
 \alias{unit.list.length}
 \alias{unset.gpar}
 \alias{unstack.viewports}
+\alias{update.col}
+\alias{update.row}
 \alias{valid.data}
 \alias{valid.just}
 \alias{valid.layout}
@@ -132,8 +159,19 @@
 \alias{viewport.layout<-}
 \alias{width}
 \alias{width.default}
+\alias{width.details.default      }
+\alias{width.details.frame        }
+\alias{width.details.rect         }
+\alias{width.details.text         }
+\alias{width.details.viewport     }
 \alias{width.frame}
 \alias{width.lines}
+\alias{width.post                 }
+\alias{width.post.details         }
+\alias{width.post.details.default }
+\alias{width.pre                  }
+\alias{width.pre.details          }
+\alias{width.pre.details.default  }
 \alias{width.text}
 \title{Internal Grid Functions}
 \description{
@@ -145,4 +183,4 @@
 These are not to be called by the user (or in some cases are just
 waiting for proper documentation to be written :).
 }
-\keyword{ts}
+\keyword{ internal }
