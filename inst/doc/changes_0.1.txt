@@ -1,0 +1,99 @@
+
+Changes from lattice_0.2 to grid_0.1:
+
+0. Change of package name from "lattice" to "grid" (!!!!)
+
+   This means that most user functions have changed from l<something>
+   to grid.<something>
+
+1. Slight speed up of grid.push.viewport and grid.pop.viewport.
+
+2. Added sum() method for units.
+
+   For example, try ...
+
+       grid.rect(w=sum(unit(c(.25,.25), "npc")))
+       grid.rect(w=sum(unit(c(.25,.25), "npc"), unit(1, "cm")), border="red")
+
+3. Changed the usage of grid.edit() slightly.  If you want to specify 
+   several new values at once, you must use grid.prop.list() rather
+   than just list().  For example, for a single new value use ...
+
+       grid.edit(<grob>, col="red")
+
+   ... as before, but for multiple new values use ...
+
+       grid.edit(<grob>, grid.prop.list(col="red", lty="dashed"))
+
+   ... rather than ...
+   
+       grid.edit(<grob>, list(col="red", lty="dashed"))
+
+4. Added a new grid.frame() grob.  This acts a bit like a simple 
+   grid.collection() BUT controls the placement of its children.  
+   You add children using the grid.pack() function.
+
+5. All viewports and grobs now have a "gp" slot which contains a
+   "gpar" object.  This is a list of graphical parameters, which 
+   replaces the specification of individual graphical parameters
+   for each different type of grob.  
+
+   For example, instead of the old ...
+   
+       grid.rect(w=.8, h=.8, border="red")
+
+   ... we have the new ...
+
+       grid.rect(w=.8, h=.8, gp=gpar(border="red"))
+
+   This may seem like a loss (because you have to type more stuff),
+   and it is a loss, but the (hopefully greater) win is that (i) you only
+   have one parameter for all graphical settings, for example, ...
+
+       grid.rect(w=.8, h=.8, gp=gpar(border="red", lwd=3))
+
+   ... and (ii) this applies for all grobs, for example, ...
+
+       grid.text("hi", gp=gpar(col="red", fontsize=10))
+
+   ... and (iii) you can add more graphical parameters with minimal fuss,
+   for example, ...
+
+       grid.text("hi", gp=gpar(col="red", fontsize=10, new.par=whatever))
+
+   ... and (iv) its easier to automate things (see below).
+
+   Graphical parameter settings are "permanent" so, for example, if
+   an axis sets the colour to "red" then all of its children are
+   drawn in "red" unless they set colour to something else.
+
+   For example, try ...
+
+       grid.multipanel(vp = grid.viewport(0.5, 0.5, 0.8, 0.8, 
+                                          gp=gpar(fontsize=20)))
+
+   ... and notice that all of the components of the multipanel take
+   notice of the fontsize setting of the parent viewport (except the
+   axis labels because they explicitly set the fontsize to 20 themselves).
+
+   The setting of graphical parameters is automated;  
+   if you have a slot called "gp" in your grob, Lattice will
+   set the graphical parameters in that slot before calling
+   draw.details() and unset the parameters afterwards.
+
+6. The pushing and popping of "local" viewports has been automated.
+   If you have a slot called "vp" in your grob, Lattice will call
+   grid.push.viewport() on that slot before calling draw.details() 
+   and grid.pop.viewport() afterwards.
+
+7. "collection" grobs and "[x|y]axis" grobs no longer pass editing
+   operations down to their children.  
+
+   This was mainly (only ?) for sharing graphical parameter settings
+   and that duty is now performed by the gpar stuff in point 5 above.
+
+   This is a good thing because there are some cases where passing
+   down editing operations could cause serious damage.  For example, 
+   consider what would have happened if you had edited the "vp" slot
+   of a collection grob (!)
+

@@ -1,0 +1,96 @@
+\name{viewport}
+\alias{viewport}
+%- Also NEED an `\alias' for EACH other topic documented here.
+\title{Create a Grid Viewport}
+\description{
+  This function creates a viewport, which describes a rectangular region
+  on a graphics device and defines a number of coordinate systems within
+  that region.
+}
+\usage{
+viewport(x = unit(0.5, "npc"), y = unit(0.5, "npc"),
+         width = unit(1, "npc"), height = unit(1, "npc"),
+         default.units = "npc", just = "centre", 
+         origin = "bottom.left", gp=gpar(), 
+         xscale = c(0, 1), yscale = c(0, 1),
+         angle = 0,
+         layout = NULL, layout.pos.row = NULL, layout.pos.col = NULL)
+}
+%- maybe also `usage' for other objects documented here.
+\arguments{
+  \item{x}{A numeric vector or unit object specifying x-location.}
+  \item{y}{A numeric vector or unit object specifying y-location.}
+  \item{width}{A numeric vector or unit object specifying width.}
+  \item{height}{A numeric vector or unit object specifying height.}
+  \item{default.units}{A string indicating the default units to use
+    if \code{x}, \code{y}, \code{width}, or \code{height}
+    are only given as numeric vectors.}  
+  \item{just}{A string vector specifying the justification of the viewport
+    relative to its (x, y) location.  If there are two values, the first
+    value specifes horizontal justification and the second value specifies
+    vertical justification.  Possible values are: \code{"left"},
+    \code{"right"}, \code{"centre"}, \code{"center"}, \code{"bottom"},
+    and \code{"top"}.}
+  \item{origin}{A string specifying the
+    origin of the coordinate systems within this
+    viewport.  Possible values are: \code{"bottom.left"},
+    \code{"bottom.right"}, \code{"top.left"}, and \code{"top.right"}}
+  \item{fontsize}{The default size of text within this viewport.
+    Used to determine the size of 1 unit in \code{"lines"} units.}
+  \item{lineheight}{A numeric value specifying the vertical distance
+    between baselines of consecutive lines of text;  given as a
+    multiple of the fontsize.}
+  \item{xscale}{A numeric vector of length two indicating the minimum and
+    maximum on the x-scale.}
+  \item{yscale}{A numeric vector of length two indicating the minimum
+    and maximum on the y-scale.}
+  \item{angle}{A numeric value indicating the angle of rotation of the
+    viewport.  Positive values indicate the amount of rotation, in
+    degrees, anitclockwise from the positive x-axis.}
+  \item{layout}{A Grid layout object which splits the viewport into
+    subregions.}
+  \item{layout.pos.row}{The rows occupied by this viewport in its
+    parent's layout.}
+  \item{layout.pos.col}{The columns occupied by this viewport in its
+    parent's layout.}
+}
+\details{
+  The location and size of a viewport are relative to the coordinate
+  systems defined by the viewport's parent (either a graphical device
+  or another viewport).  The location and size can be specified in a
+  very flexible way by specifying them with unit objects.
+  When specifying the location of a viewport, specifying
+  both \code{layout.pos.row} and \code{layout.pos.col} as \code{NULL}
+  indicates that
+  the viewport ignores its parent's layout and specifies its own
+  location and size (via its \code{locn}).  If only one of
+  \code{layout.pos.row} and \code{layout.pos.col} is \code{NULL}, this
+  means occupy ALL of the appropriate row(s)/column(s).  For example,
+  \code{layout.pos.row = 1} and \code{layout.pos.col = NULL} means
+  occupy all of row 1.  Specifying non-\code{NULL} values for both
+  \code{layout.pos.row} and \code{layout.pos.col} means occupy the
+  intersection of the appropriate rows and columns.  If a vector of
+  length two is
+  specified for \code{layout.pos.row} or \code{layout.pos.col}, this
+  indicates a range of rows or columns to occupy.  For example,
+  \code{layout.pos.row = c(1, 3)} and \code{layout.pos.col = c(2, 4)}
+  means occupy cells in the intersection of rows 1, 2, and 3, and
+  columns, 2, 3, and 4.
+}
+\value{
+  An R object of class \code{viewport}.
+}
+\author{Paul Murrell}
+\seealso{
+  \link{Grid},
+  \code{\link{unit}},
+  \code{\link{grid.layout}},
+  \code{\link{grid.show.layout}}.
+}
+
+\examples{
+# Diagram of a sample viewport
+grid.show.viewport(viewport(x=0.6, y=0.6,
+                   w=unit(1, "inches"), h=unit(1, "inches")))
+}
+\keyword{dplot}%-- one or more ...
