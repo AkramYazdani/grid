@@ -68,12 +68,12 @@ print.viewport <- function(x, ...) {
   print(class(x))
 }
 
-width.details.viewport <- function(vp) {
-  absolute.size(vp$width)
+width.details.viewport <- function(x) {
+  absolute.size(x$width)
 }
 
-height.details.viewport <- function(vp) {
-  absolute.size(vp$height)
+height.details.viewport <- function(x) {
+  absolute.size(x$height)
 }
 
 ####################

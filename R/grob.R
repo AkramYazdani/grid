@@ -24,7 +24,7 @@ is.grob <- function(x) {
   inherits(x, "grob")
 }
 
-get.value <- function(x, ...) {
+get.value <- function(x, child.specs=NULL) {
   UseMethod("get.value")
 }
 
@@ -35,8 +35,8 @@ get.value.default <- function(x, child.specs=NULL) {
     x
 }
 
-get.value.grob <- function(grob, child.specs=NULL) {
-  result <- .Call("L_GetSEXPPtr", grob[[1]], PACKAGE="grid")
+get.value.grob <- function(x, child.specs=NULL) {
+  result <- .Call("L_GetSEXPPtr", x[[1]], PACKAGE="grid")
   if (length(child.specs) > 0) 
     result <- get.value(result[[child.specs[[1]]]],
                         child.specs[-1])
@@ -187,21 +187,21 @@ draw.all <- function() {
   NULL
 }
 
-draw.details <- function(x, x.wrapper, recording) {
+draw.details <- function(x, x.wrapped, recording) {
   UseMethod("draw.details")
 }
 
 # When there is a pop.viewport, the number of viewports popped
 # gets put on the display list
-draw.details.default <- function(n, n.again, recording) {
-  pop.viewport(n, recording)
+draw.details.default <- function(x, x.wrapped, recording) {
+  pop.viewport(x, recording)
 }
 
-draw.details.glist <- function(glist, grob, recording) {
+draw.details.glist <- function(x, x.wrapped, recording) {
 }
 
-draw.details.viewport <- function(vp, vp.again, recording) {
-  push.viewport(vp, recording=FALSE)
+draw.details.viewport <- function(x, x.wrapped, recording) {
+  push.viewport(x, recording=FALSE)
 }
 
 print.grob <- function(x, ...) {

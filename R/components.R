@@ -1,9 +1,9 @@
 ######################################
 # Default COLLECTION of grobs
 ######################################
-draw.details.collection <- function(collection, grob, recording=TRUE) {
+draw.details.collection <- function(x, x.wrapped, recording=TRUE) {
   # A collection draws all of its children
-  lapply(collection$children, grid.draw, recording=FALSE)
+  lapply(x$children, grid.draw, recording=FALSE)
 }
 
 # Have a draw=T argument because "only" other alternative is to
@@ -36,39 +36,39 @@ common.draw.axis <- function(axis) {
     grid.draw(axis$labels, recording=FALSE)
 }
 
-draw.details.xaxis <- function(axis, grob, recording=TRUE) {
+draw.details.xaxis <- function(x, x.wrapped, recording=TRUE) {
   # We may have to create the children if there was not
   # enough information available at creation time
-  if (is.na(axis$at)) {
+  if (is.na(x$at)) {
     # FIXME:  There should be a grid.pretty rather than
     # forcing users to use grid.Call
     at <- grid.pretty(current.viewport()$xscale)
     # We edit the grob itself so that the change is permanent
-    grid.edit(grob, at=at, redraw=FALSE)
+    grid.edit(x.wrapped, at=at, redraw=FALSE)
     # Then we make sure the current draw is aware of the change
-    axis <- grid.get(grob)
+    x <- grid.get(x.wrapped)
   }    
-  common.draw.axis(axis)
+  common.draw.axis(x)
 }
 
 # NOTE that this can't be for all axes because it needs to
 # call make.XAXIS.ticks and make.XAXIS.labels
-editDetails.xaxis <- function(axis, new.values) {
+editDetails.xaxis <- function(x, new.values) {
   slot.names <- names(new.values)
   if (match("at", slot.names, nomatch=0)) {
-    # NOTE that grid.edit has already set axis$at to the new value
+    # NOTE that grid.edit has already set x$at to the new value
     # We might set at to NULL to get ticks recalculated at redraw
-    if (!is.na(axis$at)) {
-      axis$major <- make.xaxis.major(axis$at, axis$main)
-      axis$ticks <- make.xaxis.ticks(axis$at, axis$main)
-      if (axis$label)
-        axis$labels <- make.xaxis.labels(axis$at, axis$main)
+    if (!is.na(x$at)) {
+      x$major <- make.xaxis.major(x$at, x$main)
+      x$ticks <- make.xaxis.ticks(x$at, x$main)
+      if (x$label)
+        x$labels <- make.xaxis.labels(x$at, x$main)
       else
-        axis$labels <- NULL
+        x$labels <- NULL
     }
   }
   # FIXME:  Handle "label=" and "main=" too ?
-  axis
+  x
 }
 
 make.xaxis.major <- function(at, main) {
@@ -131,30 +131,30 @@ grid.xaxis <- function(at=NA, label = TRUE, main=TRUE, gp=gpar(),
         c("xaxis", "axis"), draw)
 }
 
-draw.details.yaxis <- function(axis, grob, recording=TRUE) {
+draw.details.yaxis <- function(x, x.wrapped, recording=TRUE) {
   # We may have to create the children if there was not
   # enough information available at creation time
-  if (is.na(axis$at)) {
+  if (is.na(x$at)) {
     at <- grid.pretty(current.viewport()$yscale)
-    grid.edit(grob, at=at, redraw=FALSE)
-    axis <- grid.get(grob)
+    grid.edit(x.wrapped, at=at, redraw=FALSE)
+    x <- grid.get(x.wrapped)
   }    
-  common.draw.axis(axis)
+  common.draw.axis(x)
 }
 
-editDetails.yaxis <- function(axis, new.values) {
+editDetails.yaxis <- function(x, new.values) {
   slot.names <- names(new.values)
   if (match("at", slot.names, nomatch=0)) {
-    if (!is.na(axis$at)) {
-      axis$major <- make.yaxis.major(axis$at, axis$main)
-      axis$ticks <- make.yaxis.ticks(axis$at, axis$main)
-      if (axis$label)
-        axis$labels <- make.yaxis.labels(axis$at, axis$main)
+    if (!is.na(x$at)) {
+      x$major <- make.yaxis.major(x$at, x$main)
+      x$ticks <- make.yaxis.ticks(x$at, x$main)
+      if (x$label)
+        x$labels <- make.yaxis.labels(x$at, x$main)
       else
-        axis$labels <- NULL
+        x$labels <- NULL
     }
   }
-  axis
+  x
 }
 
 make.yaxis.major <- function(at, main) {

@@ -1,8 +1,8 @@
 ######################################
 # move-to and line-to primitives
 ######################################
-draw.details.move.to <- function(l, grob, recording=TRUE) {
-  grid.Call.graphics("L_moveTo", l$x, l$y)
+draw.details.move.to <- function(x, x.wrapped, recording=TRUE) {
+  grid.Call.graphics("L_moveTo", x$x, x$y)
 }
 
 grid.move.to <- function(x=0, y=0,
@@ -18,8 +18,8 @@ grid.move.to <- function(x=0, y=0,
   grid.grob(list(x=x, y=y, vp=vp), "move.to", draw)
 }
 
-draw.details.line.to <- function(l, grob, recording=TRUE) {
-  grid.Call.graphics("L_lineTo", l$x, l$y)
+draw.details.line.to <- function(x, x.wrapped, recording=TRUE) {
+  grid.Call.graphics("L_lineTo", x$x, x$y)
 }
 
 grid.line.to <- function(x=1, y=1,
@@ -38,8 +38,8 @@ grid.line.to <- function(x=1, y=1,
 ######################################
 # LINES primitive
 ######################################
-draw.details.lines <- function(l, grob, recording=TRUE) {
-  grid.Call.graphics("L_lines", l$x, l$y)
+draw.details.lines <- function(x, x.wrapped, recording=TRUE) {
+  grid.Call.graphics("L_lines", x$x, x$y)
 }
 
 # Specify "units.per.obs=TRUE" to give a unit or units per (x, y) pair
@@ -60,8 +60,8 @@ grid.lines <- function(x=unit(c(0, 1), "npc", units.per.obs),
 ######################################
 # SEGMENTS primitive
 ######################################
-draw.details.segments <- function(s, grob, recording=TRUE) {
-  grid.Call.graphics("L_segments", s$x0, s$y0, s$x1, s$y1)
+draw.details.segments <- function(x, x.wrapped, recording=TRUE) {
+  grid.Call.graphics("L_segments", x$x0, x$y0, x$x1, x$y1)
 }
 
 # Specify "units.per.obs=TRUE" to give a unit or units per (x, y) pair
@@ -87,12 +87,12 @@ grid.segments <- function(x0=unit(0, "npc"), y0=unit(0, "npc"),
 # POLYGON primitive
 ######################################
 
-draw.details.polygon <- function(p, grob, recording=TRUE) {
+draw.details.polygon <- function(x, x.wrapped, recording=TRUE) {
   # FIXME:  Here I am passing in the colours, whereas in lgrid below
   # I set the colours using par and never pass them down.  This is
   # inconsistent !  BUT due to inconsistency in graphics.c so this
   # is a FIXGRAPHICS rather than a FIXME :)
-  grid.Call.graphics("L_polygon", p$x, p$y)
+  grid.Call.graphics("L_polygon", x$x, x$y)
 }
 
 grid.polygon <- function(x=c(0, 0.5, 1, 0.5), y=c(0.5, 1, 0.5, 0),
@@ -111,12 +111,12 @@ grid.polygon <- function(x=c(0, 0.5, 1, 0.5), y=c(0.5, 1, 0.5, 0),
 # CIRCLE primitive
 ######################################
 
-draw.details.circle <- function(c, grob, recording=TRUE) {
+draw.details.circle <- function(x, x.wrapped, recording=TRUE) {
   # FIXME:  Here I am passing in the colours, whereas in lgrid below
   # I set the colours using par and never pass them down.  This is
   # inconsistent !  BUT due to inconsistency in graphics.c so this
   # is a FIXGRAPHICS rather than a FIXME :)
-  grid.Call.graphics("L_circle", c$x, c$y, c$r)
+  grid.Call.graphics("L_circle", x$x, x$y, x$r)
 }
 
 grid.circle <- function(x=0.5, y=0.5, r=0.5,
@@ -136,21 +136,21 @@ grid.circle <- function(x=0.5, y=0.5, r=0.5,
 ######################################
 # RECT primitive
 ######################################
-draw.details.rect <- function(r, grob, recording=TRUE) {
+draw.details.rect <- function(x, x.wrapped, recording=TRUE) {
   # FIXME:  Here I am passing in the colours, whereas in lgrid below
   # I set the colours using par and never pass them down.  This is
   # inconsistent !  BUT due to inconsistency in graphics.c so this
   # is a FIXGRAPHICS rather than a FIXME :)
-  grid.Call.graphics("L_rect", r$x, r$y, r$width, r$height,
-                 valid.just(r$just))
+  grid.Call.graphics("L_rect", x$x, x$y, x$width, x$height,
+                 valid.just(x$just))
 }
 
-width.details.rect <- function(r) {
-  absolute.size(r$width)
+width.details.rect <- function(x) {
+  absolute.size(x$width)
 }
 
-height.details.rect <- function(r) {
-  absolute.size(r$height)
+height.details.rect <- function(x) {
+  absolute.size(x$height)
 }
 
 grid.rect <- function(x=unit(0.5, "npc"), y=unit(0.5, "npc"),
@@ -173,18 +173,18 @@ grid.rect <- function(x=unit(0.5, "npc"), y=unit(0.5, "npc"),
 ######################################
 # TEXT primitive
 ######################################
-draw.details.text <- function(txt, grob, recording=TRUE) {
+draw.details.text <- function(x, x.wrapped, recording=TRUE) {
   # FIXME:  Need type checking for "rot" and "check.overlap"
-  grid.Call.graphics("L_text", txt$label, txt$x, txt$y, 
-                 valid.just(txt$just), txt$rot, txt$check.overlap)
+  grid.Call.graphics("L_text", x$label, x$x, x$y, 
+                 valid.just(x$just), x$rot, x$check.overlap)
 }
 
-width.details.text <- function(txt) {
-  unit(1, "mystrwidth", data=txt$label)
+width.details.text <- function(x) {
+  unit(1, "mystrwidth", data=x$label)
 }
 
-height.details.text <- function(txt) {
-  unit(1, "mystrheight", data=txt$label)
+height.details.text <- function(x) {
+  unit(1, "mystrheight", data=x$label)
 }
 
 grid.text <- function(label, x=unit(0.5, "npc"), y=unit(0.5, "npc"),
@@ -204,8 +204,8 @@ grid.text <- function(label, x=unit(0.5, "npc"), y=unit(0.5, "npc"),
 ######################################
 # POINTS primitive
 ######################################
-draw.details.points <- function(p, grob, recording=TRUE) {
-  grid.Call.graphics("L_points", p$x, p$y, p$pch, p$size)
+draw.details.points <- function(x, x.wrapped, recording=TRUE) {
+  grid.Call.graphics("L_points", x$x, x$y, x$pch, x$size)
 }
 
 valid.pch <- function(pch) {

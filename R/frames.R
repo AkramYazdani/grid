@@ -2,12 +2,12 @@
 # Stuff for lpack()
 ######################################
 
-width.details.frame <- function(frame) {
-  sum(layout.widths(viewport.layout(frame$frame.vp)))
+width.details.frame <- function(x) {
+  sum(layout.widths(viewport.layout(x$frame.vp)))
 }
 
-height.details.frame <- function(frame) {
-  sum(layout.heights(viewport.layout(frame$frame.vp)))
+height.details.frame <- function(x) {
+  sum(layout.heights(viewport.layout(x$frame.vp)))
 }
 
 draw.frame.child <- function(grob) {
@@ -27,11 +27,11 @@ draw.frame.child <- function(grob) {
   pop.viewport(recording=FALSE)
 }
 
-draw.details.frame <- function(frame, grob, recording=TRUE) {
-  if (!is.null(frame$frame.vp))
-    push.viewport(frame$frame.vp, recording=FALSE)
-  lapply(frame$children, draw.frame.child)
-  if (!is.null(frame$frame.vp))
+draw.details.frame <- function(x, x.wrapped, recording=TRUE) {
+  if (!is.null(x$frame.vp))
+    push.viewport(x$frame.vp, recording=FALSE)
+  lapply(x$children, draw.frame.child)
+  if (!is.null(x$frame.vp))
     pop.viewport(recording=FALSE)
 }
 
