@@ -28,6 +28,7 @@ convertNative(unit, dimension="x", type="location")
 \seealso{ \code{\link{unit}} }
 
 \examples{
+grid.newpage()
 push.viewport(viewport(width=unit(.5, "npc"),
                        height=unit(.5, "npc")))
 grid.rect()

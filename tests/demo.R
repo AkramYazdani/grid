@@ -1,6 +1,5 @@
 library(grid)
 postscript("demo.ps")
-grid.start()
 x <- runif(10)
 y <- runif(10)
 
@@ -589,7 +588,7 @@ grid.newpage()
   y2 <- runif(10)
   pch <- 1:3
   labels <- c("Girls", "Boys", "Other")
-  gf <- grid.frame()
+  gf <- grid.frame(draw=TRUE)
   plot <- grid.collection(grid.rect(draw=F),
                           grid.points(x, y1, pch=1, draw=F),
                           grid.points(x, y2, pch=2, draw=F),
@@ -609,8 +608,6 @@ my.text <- grid.text("some text")
 grid.rect(width=unit(1, "grobwidth", my.text),
           height=unit(1, "grobheight", my.text))
 
-# tb stands for testbetween
-grid.newpage()
 grid.edit(my.text, gp=gpar(fontsize=20))
 
 grid.edit(my.text, label="some different text")

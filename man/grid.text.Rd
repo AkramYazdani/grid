@@ -46,6 +46,7 @@ grid.text(label, x = unit(0.5, "npc"), y = unit(0.5, "npc"),
 }
 
 \examples{
+grid.newpage()
 x <- runif(20)
 y <- runif(20)
 rot <- runif(20, 0, 360)

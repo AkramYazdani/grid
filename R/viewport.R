@@ -1,5 +1,5 @@
 valid.viewport <- function(x, y, width, height, just, origin,
-                           gp,
+                           gp, clip,
                            xscale, yscale, angle,
                            layout, layout.pos.row, layout.pos.col) {
   if (unit.length(x) > 1 || unit.length(y) > 1 ||
@@ -7,6 +7,7 @@ valid.viewport <- function(x, y, width, height, just, origin,
     stop("`x', `y', `width', and `height' must all be units of length 1")
   if (!is.gpar(gp))
     stop("Invalid graphics parameters")
+  clip <- as.logical(clip)
   if (!is.numeric(xscale) || length(xscale) != 2)
     stop("Invalid xscale in viewport")
   if (!is.numeric(yscale) || length(yscale) != 2)
@@ -25,6 +26,7 @@ valid.viewport <- function(x, y, width, height, just, origin,
              valid.pos.row = layout.pos.row,
              valid.pos.col = layout.pos.col,
              gp = gp,
+             clip = clip,
              # A viewport may have a specification of fontsize
              # and lineheight in the gpar, BUT it does not have to
              # If it does not, then that means it will just use
@@ -34,6 +36,8 @@ valid.viewport <- function(x, y, width, height, just, origin,
              # L_setviewport is called.
              # We record here the "current" value so that we can
              # reset the value when a child viewport is popped.
+             # Ditto font.
+             cur.font = NULL,
              cur.fontsize = NULL,
              cur.lineheight = NULL,
              # When L_setviewport is called, we also record
@@ -46,6 +50,7 @@ valid.viewport <- function(x, y, width, height, just, origin,
              cur.width.cm = NULL,
              cur.height.cm = NULL,
              cur.rotation = NULL,
+             cur.clip = NULL,
              xscale = xscale,
              yscale = yscale,
              angle = angle,
@@ -58,8 +63,8 @@ valid.viewport <- function(x, y, width, height, just, origin,
   vp
 }
 
-print.viewport <- function(vp) {
-  print(class(vp))
+print.viewport <- function(x, ...) {
+  print(class(x))
 }
 
 width.details.viewport <- function(vp) {
@@ -78,12 +83,6 @@ viewport.layout <- function(vp) {
   vp$layout
 }
 
-"viewport.layout<-" <- function(vp, value) {
-  # FIXME:  should check that new layout value is valid
-  vp$layout <- value
-  vp
-}
-
 ####################
 # Public Constructor
 ####################
@@ -95,6 +94,7 @@ viewport <- function(x = unit(0.5, "npc"),
                      just = "centre",
                      origin = "bottom.left",
                      gp = gpar(),
+                     clip = FALSE,
                      # FIXME: scales are only linear at the moment 
                      xscale = c(0, 1),
                      yscale = c(0, 1),
@@ -113,7 +113,7 @@ viewport <- function(x = unit(0.5, "npc"),
   if (!is.unit(height))
     height <- unit(height, default.units)
   valid.viewport(x, y, width, height, just, origin,
-                 gp, xscale, yscale, angle,
+                 gp, clip, xscale, yscale, angle,
                  layout, layout.pos.row, layout.pos.col)
 }
 

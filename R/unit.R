@@ -30,12 +30,12 @@ recycle.data <- function(data, data.per, max.n) {
 unit <- function(x, units, data=NULL) {
   if (!is.numeric(x))
     stop("x must be numeric")
-  valid.unit(x, units, recycle.data(data, F, length(x)))
+  valid.unit(x, units, recycle.data(data, FALSE, length(x)))
 }
 
 valid.unit <- function(x, units, data) {
   valid.units <- valid.units(units)
-  data <- valid.data(units, data)
+  data <- valid.data(rep(units, length.out=length(x)), data)
   attr(x, "unit") <- units
   attr(x, "valid.unit") <- valid.units
   attr(x, "data") <- data
@@ -48,9 +48,7 @@ convertNative <- function(unit, dimension="x", type="location") {
     2*(match(type, c("location", "dimension")) - 1)
   if (is.na(what))
     stop("Invalid dimension or type")
-  .Call("L_convertToNative", unit, as.integer(what),
-        get.gpar("fontsize"), get.gpar("lineheight"),
-        .grid.viewport)
+  .Call("L_convertToNative", unit, as.integer(what))
 }
 
 # NOTE: the order of the strings in these conversion functions must
@@ -62,7 +60,7 @@ convertNative <- function(unit, dimension="x", type="location") {
                      "strwidth", "strheight",
                      "vplayoutwidth", "vplayoutheight", "char",
                      "grobwidth", "grobheight",
-                     "mylines", "mychar")
+                     "mylines", "mychar", "mystrwidth", "mystrheight")
 
 # Make sure that and "str*" and "grob*" units have data
 valid.data <- function(units, data) {
@@ -113,7 +111,7 @@ unit.arithmetic <- function(func.name, arg1, arg2=NULL) {
 }
 
 Ops.unit <- function(x, y) {
-  ok <- switch(.Generic, "+"=T, "-"=T, "*"=T, F)
+  ok <- switch(.Generic, "+"=TRUE, "-"=TRUE, "*"=TRUE, FALSE)
   if (!ok)
     stop(paste("Operator", .Generic, "not meaningful for units"))
   if (.Generic=="*")
@@ -144,7 +142,7 @@ Summary.unit <- function(..., na.rm=FALSE) {
   # NOTE that this call to unit.c makes sure that arg1 is
   # a single unit object 
   x <- unit.c(...)
-  ok <- switch(.Generic, "max"=T, "min"=T, "sum"=T, F)
+  ok <- switch(.Generic, "max"=TRUE, "min"=TRUE, "sum"=TRUE, FALSE)
   if (!ok)
     stop(paste("Summary function", .Generic, "not meaningful for units"))
   unit.arithmetic(.Generic, x)
@@ -163,6 +161,50 @@ as.character.unit.arithmetic <- function(ua) {
     paste(ua$arg1, fname, ua$arg2, sep="")
   else
     paste(fname, "(", paste(ua$arg1, collapse=", "), ")", sep="")
+}
+
+unit.pmax <- function(...) {
+
+  select.i <- function(unit, i) {
+    "["(unit, i, top=FALSE)
+  }
+
+  x <- list(...)
+  numargs <- length(x)
+  if (numargs == 0)
+    stop("Zero arguments where at least one expected")
+  # how long will the result be?
+  maxlength <- 0
+  for (i in 1:numargs)
+    if (unit.length(x[[i]]) > maxlength)
+      maxlength <- unit.length(x[[i]])
+  # maxlength guaranteed >= 1
+  result <- max(unit.list.from.list(lapply(x, select.i, 1)))
+  for (i in 2:maxlength)
+    result <- unit.c(result, max(unit.list.from.list(lapply(x, select.i, i))))
+  result
+}
+
+unit.pmin <- function(...) {
+
+  select.i <- function(unit, i) {
+    "["(unit, i, top=FALSE)
+  }
+
+  x <- list(...)
+  numargs <- length(x)
+  if (numargs == 0)
+    stop("Zero arguments where at least one expected")
+  # how long will the result be?
+  maxlength <- 0
+  for (i in 1:numargs)
+    if (unit.length(x[[i]]) > maxlength)
+      maxlength <- unit.length(x[[i]])
+  # maxlength guaranteed >= 1
+  result <- min(unit.list.from.list(lapply(x, select.i, 1)))
+  for (i in 2:maxlength)
+    result <- unit.c(result, min(unit.list.from.list(lapply(x, select.i, i))))
+  result  
 }
 
 #########################
@@ -201,8 +243,8 @@ is.unit <- function(unit) {
   inherits(unit, "unit")
 }
 
-print.unit <- function(unit) {
-  print(as.character(unit), quote=F)
+print.unit <- function(x, ...) {
+  print(as.character(x), quote=FALSE)
 }
 
 #########################
@@ -327,8 +369,7 @@ unit.c <- function(...) {
   }
 }
 
-unit.list.c <- function(...) {
-  x <- list(...)
+unit.list.from.list <- function(x) {
   result <- unit.list(x[[1]])
   i <- 2
   while (i < length(x) + 1) {
@@ -336,7 +377,62 @@ unit.list.c <- function(...) {
     i <- i + 1
   }
   class(result) <- "unit.list"
-  unit.list(result)
+  unit.list(result)  
+}
+                                 
+unit.list.c <- function(...) {
+  x <- list(...)
+  unit.list.from.list(x)
+}
+
+#########################
+# rep'ing unit objects
+#########################
+
+# NOTE that rep() is not a generic -- it does have different "methods"
+# for some different data types, but this is ALL handled internally
+# in seq.c
+
+unit.arithmetic.rep <- function(x, times) {
+  switch(x$fname,
+         "+"=unit.rep(x$arg1, times) + unit.rep(x$arg2, times),
+         "-"=unit.rep(x$arg1, times) - unit.rep(x$arg2, times),
+         "*"=x$arg1 * unit.rep(x$arg2, times),
+         "min"=unit.list.rep(unit.list(x), times),
+         "max"=unit.list.rep(unit.list(x), times),
+         "sum"=unit.list.rep(unit.list(x), times))
+}
+
+unit.list.rep <- function(x, times) {
+  # Make use of the subsetting code to replicate the unit list
+  # top=FALSE allows the subsetting to go beyond the original length
+  "["(x, 1:(unit.length(x)*times), top=FALSE)
+}
+
+unit.rep <- function (x, times, length.out) 
+{
+  if (unit.length(x) == 0) 
+    return(x)
+  if (missing(times)) 
+    times <- ceiling(length.out/length(x))
+  
+  if (is.unit.list(x))
+    unit <- unit.list.rep(x, times)
+  else if (is.unit.arithmetic(x))
+    unit <- unit.arithmetic.rep(x, times)
+  else {
+    values <- rep(x, times)
+    # Do I need to replicate the "unit"s?
+    unit <- attr(x, "unit")
+    # If there are any data then they must be explicitly replicated
+    # because the list of data must be the same length as the
+    # vector of values
+    data <- recycle.data(attr(x, "data"), TRUE, length(values))
+    unit <- unit(values, unit, data=data)
+  }
+  if (!missing(length.out)) 
+    return(unit[if (length.out > 0) 1:length.out else integer(0)])
+  unit
 }
 
 #########################
@@ -381,7 +477,7 @@ absolute <- function(unit) {
                  "mm", "points", "picas", "bigpts",
                  "dida", "cicero", "scaledpts",
                  "strwidth", "strheight", "char",
-                 "mylines", "mychar")))
+                 "mylines", "mychar", "mystrwidth", "mystrheight")))
 }
 
 absolute.units.list <- function(ul) {

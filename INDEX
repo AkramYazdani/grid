@@ -21,6 +21,8 @@ grid.lines               Draw Lines in a Grid Viewport
 grid.move.to             Move to a Specified Position
 grid.newpage             Move to a New Page on a Grid Device
 grid.pack                Pack an Object within a Frame
+grid.place               Place an Object within a Frame
+grid.plot.and.legend     A simple plot and legend demo.
 grid.points              Draw Data Symbols in a Grid Viewport
 grid.polygon             Draw a Polygon
 grid.rect                Draw a rectangle in a Grid Viewport
@@ -37,5 +39,7 @@ push.viewport            Push a Viewport onto the Grid Viewport Stack
 unit                     Function to Create a Unit Object
 unit.c                   Combine Unit Objects
 unit.length              Length of a Unit Object
+unit.pmin                Parallel Unit Minima and Maxima
+unit.rep                 ~~function to do ... ~~
 viewport                 Create a Grid Viewport
 width.details            Width of a Grob

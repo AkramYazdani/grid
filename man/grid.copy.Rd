@@ -34,6 +34,8 @@ grid.get(l)
 l2 <- l
 # Edit the common list.struct
 grid.edit(l2, gp=gpar(col="green"))
+# We have modified "l"
+grid.get(l)
 # Copy by value
 l3 <- grid.copy(l)
 }

@@ -5,65 +5,227 @@
  * package used to be called "lattice"
  */
 
-/* Global device dimensions
- * 
- */
-double L_devWidthCM = 0;
-double L_devHeightCM = 0;
+extern int gridRegisterIndex;
+
 /* FIXME:  Need to query device for this
  */
 double devPS = 10;
 
-void getDeviceSize(DevDesc *dd, double *devWidthCM, double *devHeightCM) 
+void getDeviceSize(GEDevDesc *dd, double *devWidthCM, double *devHeightCM) 
 {
-    *devWidthCM = GConvertXUnits(1.0, NDC, INCHES, dd)*2.54;
-    *devHeightCM = GConvertYUnits(1.0, NDC, INCHES, dd)*2.54;
+    double left, right, bottom, top;
+    dd->dev->size(&left, &right, &bottom, &top, dd->dev);
+    *devWidthCM = fabs(right - left) * dd->dev->ipr[0] * 2.54;
+    *devHeightCM = fabs(top - bottom) * dd->dev->ipr[1] * 2.54;
 }
 
-Rboolean deviceChanged(double devWidthCM, double devHeightCM)
+Rboolean deviceChanged(double devWidthCM, double devHeightCM, 
+		       GEDevDesc* dd)
 {
     Rboolean result = FALSE;
-    if (fabs(L_devWidthCM - devWidthCM) > DBL_EPSILON) {
+    SEXP devsize;
+    PROTECT(devsize = gridStateElement(dd, GSS_DEVSIZE));
+    if (fabs(REAL(devsize)[0] - devWidthCM) > DBL_EPSILON) {
 	result = TRUE;
-	L_devWidthCM = devWidthCM;
+	REAL(devsize)[0] = devWidthCM;
     }
-    if (fabs(L_devHeightCM - devHeightCM) > DBL_EPSILON) {
+    if (fabs(REAL(devsize)[1] - devHeightCM) > DBL_EPSILON) {
 	result = TRUE;
-	L_devHeightCM = devHeightCM;
+	REAL(devsize)[1] = devHeightCM;
     }
+    UNPROTECT(1);
     return result;
 }
 
-SEXP L_setviewport(SEXP vp, SEXP setParent)
+/* Register grid with R's graphics engine
+ */
+SEXP L_initGrid() 
 {
-    double devWidthCM, devHeightCM;
+    SEXP globalstate;
+    /* 64 comes from the maximum number of R devices allowed
+     * to be open at one time 
+     * See:  R_MaxDevices in Graphics.h
+     */
+    PROTECT(globalstate = allocVector(VECSXP, 64));
+    setSymbolValue(".GRID.STATE", globalstate);
+    GEregisterSystem(gridCallback, &gridRegisterIndex);
+    UNPROTECT(1);
+    return R_NilValue;
+}
+
+SEXP L_killGrid() 
+{
+    GEunregisterSystem(gridRegisterIndex);
+    /* FIXME: Should "remove" the variable, not just NULL it
+     */
+    setSymbolValue(".GRID.STATE", R_NilValue);
+    return R_NilValue;
+}
+
+GEDevDesc* getDevice() 
+{
+    if (NoDevices()) {
+	SEXP defdev = GetOption(install("device"), R_NilValue);
+	if (isString(defdev) && length(defdev) > 0) {
+	    PROTECT(defdev = lang1(install(CHAR(STRING_ELT(defdev, 0)))));
+	}
+	else error("No active or default device");
+	eval(defdev, R_GlobalEnv);
+	UNPROTECT(1);
+    }
+    return GEcurrentDevice();
+}
+
+void getViewportContext(SEXP vp, LViewportContext *vpc)
+{
+    fillViewportContextFromViewport(vp, vpc);
+}
+
+SEXP L_currentViewport() 
+{
     /* Get the current device 
      */
-    DevDesc *dd = CurrentDevice();
+    GEDevDesc *dd = getDevice();
+    return gridStateElement(dd, GSS_VP);
+}
+
+SEXP doSetViewport(SEXP vp, SEXP hasParent, GEDevDesc *dd)
+{
+    int i, j;
+    double devWidthCM, devHeightCM;
+    double xx1, yy1, xx2, yy2;
+    SEXP currentClip;
     /* Get the current device size 
      */
-    getDeviceSize(dd, &devWidthCM, &devHeightCM);
-    if (LOGICAL(setParent)[0])
+    getDeviceSize((dd), &devWidthCM, &devHeightCM);
+    if (hasParent != R_NilValue)
 	/* Set the viewport's parent
 	 * Need to do this in here so that redrawing via R BASE display
 	 * list works 
 	 */
-	setListElement(vp, "parent", 
-		       findVar(install(".grid.viewport"), R_GlobalEnv));
+	setListElement(vp, "parent", gridStateElement(dd, GSS_VP));
     /* Calculate the transformation for the viewport.
      * This will hopefully only involve updating the transformation
      * from the previous viewport.
      * However, if the device has changed size, we will need to
      * recalculate the transformation from the top-level viewport
      * all the way down.
+     * NEVER incremental for top-level viewport
      */
     calcViewportTransform(vp, viewportParent(vp), 
-			  !deviceChanged(devWidthCM, devHeightCM), dd);
-    /* Set the value of .grid.viewport
+			  hasParent != R_NilValue &&
+			  !deviceChanged(devWidthCM, devHeightCM, dd), dd);
+    /* If we are supposed to clip to this viewport ...
+     * NOTE that we will only clip if there is no rotation
+     */
+    if (viewportClip(vp)) {
+	double rotationAngle = REAL(viewportCurrentRotation(vp))[0];
+	if (rotationAngle != 0)
+	    warning("Cannot clip to rotated viewport");
+	else {
+	    /* Calculate a clipping region and set it
+	     */
+	    SEXP x1, y1, x2, y2;
+	    LViewportContext vpc;
+	    double vpWidthCM = REAL(viewportCurrentWidthCM(vp))[0];
+	    double vpHeightCM = REAL(viewportCurrentHeightCM(vp))[0];
+	    LTransform transform;
+	    for (i=0; i<3; i++)
+		for (j=0; j<3; j++)
+		    transform[i][j] = 
+			REAL(viewportCurrentTransform(vp))[i + 3*j];
+	    if (hasParent == R_NilValue) {
+		/* Special case for top-level viewport.
+		 * Set clipping region outside device boundaries.
+		 * This means that we have set the clipping region to
+		 * something, but avoids problems if the nominal device
+		 * limits are actually within its physical limits
+		 * (e.g., PostScript)
+		 */
+	        PROTECT(x1 = unit(-.5, L_NPC));
+		PROTECT(y1 = unit(-.5, L_NPC));
+		PROTECT(x2 = unit(1.5, L_NPC));
+		PROTECT(y2 = unit(1.5, L_NPC));
+	    } else {
+		PROTECT(x1 = unit(0, L_NPC));
+		PROTECT(y1 = unit(0, L_NPC));
+		PROTECT(x2 = unit(1, L_NPC));
+		PROTECT(y2 = unit(1, L_NPC));
+	    }
+	    getViewportContext(vp, &vpc);
+	    transformLocn(x1, y1, 0, vpc,  
+			  viewportFont(vp),
+			  viewportFontSize(vp),
+			  viewportLineHeight(vp),
+			  vpWidthCM, vpHeightCM,
+			  dd,
+			  transform,
+			  &xx1, &yy1);
+	    transformLocn(x2, y2, 0, vpc,  
+			  viewportFont(vp),
+			  viewportFontSize(vp),
+			  viewportLineHeight(vp),
+			  vpWidthCM, vpHeightCM,
+			  dd,
+			  transform,
+			  &xx2, &yy2);
+	    UNPROTECT(4);  /* unprotect x1, y1, x2, y2 */
+	    /* The graphics engine only takes device coordinates
+	     */
+	    xx1 = toDeviceX(xx1, GE_INCHES, dd);
+	    yy1 = toDeviceY(yy1, GE_INCHES, dd);
+	    xx2 = toDeviceX(xx2, GE_INCHES, dd);
+	    yy2 = toDeviceY(yy2, GE_INCHES, dd);
+	    GESetClip(xx1, yy1, xx2, yy2, dd);
+	    /* This is a VERY short term fix to avoid mucking
+	     * with the core graphics during feature freeze
+	     * It should be removed post R 1.4 release
+	     */
+	    dd->dev->clipLeft = fmin2(xx1, xx2);
+	    dd->dev->clipRight = fmax2(xx1, xx2);
+	    dd->dev->clipTop = fmax2(yy1, yy2);
+	    dd->dev->clipBottom = fmin2(yy1, yy2); 
+	}
+    } else {
+	/* If we haven't set the clipping region for this viewport
+	 * we need to save the clipping region from its parent
+	 * so that when we pop this viewport we can restore that.
+	 */
+	/* NOTE that we are relying on grid.R setting clip=TRUE
+	 * for the top-level viewport, else *BOOM*!
+	 */
+	SEXP parentClip;
+	PROTECT(parentClip = viewportCurClip(viewportParent(vp)));
+	xx1 = REAL(parentClip)[0];
+	yy1 = REAL(parentClip)[1];
+	xx2 = REAL(parentClip)[2];
+	yy2 = REAL(parentClip)[3];
+	UNPROTECT(1);
+    }
+    PROTECT(currentClip = allocVector(REALSXP, 4));
+    REAL(currentClip)[0] = xx1;
+    REAL(currentClip)[1] = yy1;
+    REAL(currentClip)[2] = xx2;
+    REAL(currentClip)[3] = yy2;
+    setListElement(vp, "cur.clip", currentClip);
+    UNPROTECT(1);
+    return vp;
+}
+
+/* hasParent will be TRUE for viewports pushed from R code
+ * an NULL for the top-level viewport set in C code
+ */
+SEXP L_setviewport(SEXP vp, SEXP hasParent)
+{
+    /* Get the current device 
+     */
+    GEDevDesc *dd = getDevice();
+    vp = doSetViewport(vp, hasParent, dd);
+    /* Set the value of the current viewport for the current device
      * Need to do this in here so that redrawing via R BASE display
      * list works 
      */
-    setVar(install(".grid.viewport"), vp, R_GlobalEnv);
+    setGridStateElement(dd, GSS_VP, vp);
     return R_NilValue;
 }
 
@@ -72,105 +234,180 @@ SEXP L_setviewport(SEXP vp, SEXP setParent)
  */
 SEXP L_unsetviewport(SEXP last)
 {
-    /* Get the value of .grid.viewport
+    double xx1, yy1, xx2, yy2;
+    SEXP parentClip;
+    SEXP newvp;
+    /* Get the current device 
+     */
+    GEDevDesc *dd = getDevice();
+    /* Get the value of the current viewport for the current device
      * Need to do this in here so that redrawing via R BASE display
      * list works 
      */    
-    SEXP gvp = findVar(install(".grid.viewport"), R_GlobalEnv);
-    SEXP newvp;
+    SEXP gvp = gridStateElement(dd, GSS_VP);
     /* NOTE that the R code has already checked that .grid.viewport$parent
      * is non-NULL
      */
     PROTECT(newvp = getListElement(gvp, "parent"));
     if (LOGICAL(last)[0]) {
 	double devWidthCM, devHeightCM;
-	/* Get the current device 
-	 */
-	DevDesc *dd = CurrentDevice();
 	/* Get the current device size 
 	 */
 	getDeviceSize(dd, &devWidthCM, &devHeightCM);
-	if (deviceChanged(devWidthCM, devHeightCM))
+	if (deviceChanged(devWidthCM, devHeightCM, dd))
 	    calcViewportTransform(newvp, viewportParent(newvp), 1, dd);
     }
-    /* Set the value of .grid.viewport
+    /* Set the clipping region to the parent's cur.clip
+     */
+    parentClip = viewportCurClip(newvp);
+    xx1 = REAL(parentClip)[0];
+    yy1 = REAL(parentClip)[1];
+    xx2 = REAL(parentClip)[2];
+    yy2 = REAL(parentClip)[3];
+    GESetClip(xx1, yy1, xx2, yy2, dd);
+	    /* This is a VERY short term fix to avoid mucking
+	     * with the core graphics during feature freeze
+	     * It should be removed post R 1.4 release
+	     */
+	    dd->dev->clipLeft = fmin2(xx1, xx2);
+	    dd->dev->clipRight = fmax2(xx1, xx2);
+	    dd->dev->clipTop = fmax2(yy1, yy2);
+	    dd->dev->clipBottom = fmin2(yy1, yy2); 
+    /* Set the value of the current viewport for the current device
      * Need to do this in here so that redrawing via R BASE display
      * list works 
      */
-    setVar(install(".grid.viewport"), newvp, R_GlobalEnv);
+    setGridStateElement(dd, GSS_VP, newvp);
     UNPROTECT(1);
     return R_NilValue;
 }
 
-/* This function is just used to fool R base graphics into thinking
- * that plot.new() has been called. 
- * Base R graphics has the notion of a current plot and certain 
- * functions can only add to an existing plot, so there has to be
- * a plot to add something to.
- * This check occurs in .Call.graphics so I have to make R think
- * that I've called plot.new() for the grid functions to work
- * all of the time.
- */
-SEXP L_initDevice() {
-    DevDesc *dd = CurrentDevice();
-    GSetState(1, dd);
+SEXP L_getDisplayList() 
+{
+    /* Get the current device 
+     */
+    GEDevDesc *dd = getDevice();
+    return gridStateElement(dd, GSS_DL);
 }
 
-/* FIXME:  GNewPlot runs in two different modes, depending on whether
- * it is being recorded on the display list or being replayed from the
- * the display list (it takes a boolean argument to specify which mode).
- * Unfortunately, since this is non-internal code, I cannot tell 
- * whether I am being recorded on the display list or being 
- * replayed from the display list.
- * SO ... the L_newpagerecording function is a copy of the bit of
- * GNewPlot that gets run when recording on the display list
- * and I only .Call this function (so that it never gets replayed
- * from the display list) 
- * AND ... the L_newpage function just calls GNewPlot with the 
- * boolean set to FALSE (i.e., it does the stuff that GNewPlot does
- * when it is recording to the display list) and I call this with
- * .Call.graphics so that it gets replayed from the display list.
- * NOTE that this only works because lattice graphics only ever 
- * has one plot - par(mfrow=c(1,1)) - in base R graphics terms.
- * Specifically, dd->gp.lastFigure = 1
- * NOTE that this does not do any plot history recording
- * Ultimately, this could be fixed by either (i) making lattice 
- * graphics internal code or (ii) splitting GNewPlot into bits
- * in graphics.c so that I don't have to have a copy of the code here.
+SEXP L_setDisplayList(SEXP dl) 
+{
+    /* Get the current device 
+     */
+    GEDevDesc *dd = getDevice();
+    setGridStateElement(dd, GSS_DL, dl);
+    return R_NilValue;
+}
+
+/* Add an element to the display list at the current location
+ * Location is maintained in R code
  */
+SEXP L_setDLelt(SEXP value)
+{
+    /* Get the current device 
+     */
+    GEDevDesc *dd = getDevice();
+    SEXP dl;
+    PROTECT(dl = gridStateElement(dd, GSS_DL));
+    SET_VECTOR_ELT(dl, INTEGER(gridStateElement(dd, GSS_DLINDEX))[0], value);
+    UNPROTECT(1);
+    return R_NilValue;
+}
+
+SEXP L_getDLindex()
+{
+    /* Get the current device 
+     */
+    GEDevDesc *dd = getDevice();
+    return gridStateElement(dd, GSS_DLINDEX);
+}
+
+SEXP L_setDLindex(SEXP index)
+{
+    /* Get the current device 
+     */
+    GEDevDesc *dd = getDevice();
+    setGridStateElement(dd, GSS_DLINDEX, index);
+    return R_NilValue;
+}
+
+SEXP L_getDLon()
+{
+    /* Get the current device 
+     */
+    GEDevDesc *dd = getDevice();
+    return gridStateElement(dd, GSS_DLON);
+}
+
+SEXP L_setDLon(SEXP value)
+{
+    /* Get the current device 
+     */
+    GEDevDesc *dd = getDevice();
+    setGridStateElement(dd, GSS_DLON, value);
+    return R_NilValue;
+}
+
+SEXP L_currentGPar()
+{
+    /* Get the current device 
+     */
+    GEDevDesc *dd = getDevice();
+    return gridStateElement(dd, GSS_GPAR);
+}
+
 SEXP L_newpagerecording(SEXP ask)
 {
-    DevDesc *dd = CurrentDevice();
+    GEDevDesc *dd = getDevice();
     if (LOGICAL(ask)[0]) {
 	NewFrameConfirm();
-	if (NoDevices())
-	    error("attempt to plot on null device");
-	else
-	    dd = CurrentDevice();
     }
-    initDisplayList(dd);
+    GEinitDisplayList(dd);
     return R_NilValue;
 }
 
 SEXP L_newpage()
 {
-    /* FALSE means GNewPlot does not think it is recording
-     * i.e., it thinks it is being replayed from the display list.
-     */
-    DevDesc *dd = GNewPlot(FALSE);
-    GSetState(1, dd);
+    GEDevDesc *dd = getDevice();
+    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
+    SEXP fill = gpFillSXP(currentgp);
+    if (isNull(fill))
+	GENewPage(NA_INTEGER, gpGamma(currentgp), dd);
+    else
+	GENewPage(RGBpar(fill, 0), gpGamma(currentgp), dd);
+    return R_NilValue;
+}
+
+SEXP L_initGPar()
+{
+    GEDevDesc *dd = getDevice();
+    initGPar(dd);
+    return R_NilValue;
+}
+
+SEXP L_initViewportStack()
+{
+    GEDevDesc *dd = getDevice();
+    initVP(dd);
+    return R_NilValue;
+}
+
+SEXP L_initDisplayList()
+{
+    GEDevDesc *dd = getDevice();
+    initDL(dd);
     return R_NilValue;
 }
 
 void getViewportTransform(SEXP currentvp, 
-			  DevDesc *dd, 
+			  GEDevDesc *dd, 
 			  double *vpWidthCM, double *vpHeightCM,
 			  LTransform transform, double *rotationAngle) 
 {
     int i, j;
     double devWidthCM, devHeightCM;
-    getDeviceSize(dd, &devWidthCM, &devHeightCM) ;
-    if (deviceChanged(devWidthCM, devHeightCM)) {
+    getDeviceSize((dd), &devWidthCM, &devHeightCM) ;
+    if (deviceChanged(devWidthCM, devHeightCM, dd)) {
 	/* IF the device has changed, recalculate the viewport transform
 	 */
 	calcViewportTransform(currentvp, viewportParent(currentvp), 1, dd); 
@@ -184,11 +421,6 @@ void getViewportTransform(SEXP currentvp,
     *vpHeightCM = REAL(viewportCurrentHeightCM(currentvp))[0];
 }
 
-void getViewportContext(SEXP vp, LViewportContext *vpc)
-{
-    fillViewportContextFromViewport(vp, vpc);
-}
-
 
 /***************************
  * CONVERSION FUNCTIONS
@@ -200,8 +432,7 @@ void getViewportContext(SEXP vp, LViewportContext *vpc)
  * NOTE that we are only converting relative to the viewport
  * NOT relative to the device
  */
-SEXP L_convertToNative(SEXP x, SEXP what,
-		       SEXP fontsize, SEXP lineheight, SEXP currentvp) 
+SEXP L_convertToNative(SEXP x, SEXP what) 
 {
     int i, nx;
     double vpWidthCM, vpHeightCM;
@@ -211,7 +442,9 @@ SEXP L_convertToNative(SEXP x, SEXP what,
     SEXP result;
     /* Get the current device 
      */
-    DevDesc *dd = CurrentDevice();
+    GEDevDesc *dd = getDevice();
+    SEXP currentvp = gridStateElement(dd, GSS_VP);
+    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
     getViewportTransform(currentvp, dd, 
 			 &vpWidthCM, &vpHeightCM, 
 			 transform, &rotationAngle);
@@ -222,32 +455,36 @@ SEXP L_convertToNative(SEXP x, SEXP what,
     case 0:
 	for (i=0; i<nx; i++)  
 	    REAL(result)[i] = transformXtoNative(x, i, vpc, 
-						 REAL(fontsize)[0], 
-						 REAL(lineheight)[0],
+						 gpFont(currentgp),
+						 gpFontSize(currentgp), 
+						 gpLineHeight(currentgp),
 						 vpWidthCM, vpHeightCM,
 						 dd);
 	break;
     case 1:	
 	for (i=0; i<nx; i++)  
 	    REAL(result)[i] = transformYtoNative(x, i, vpc, 
-						 REAL(fontsize)[0], 
-						 REAL(lineheight)[0],
+						 gpFont(currentgp),
+						 gpFontSize(currentgp), 
+						 gpLineHeight(currentgp),
 						 vpWidthCM, vpHeightCM,
 						 dd);
 	break;
     case 2:
 	for (i=0; i<nx; i++)  
 	    REAL(result)[i] = transformWidthtoNative(x, i, vpc, 
-						     REAL(fontsize)[0], 
-						     REAL(lineheight)[0],
+						     gpFont(currentgp),
+						     gpFontSize(currentgp), 
+						     gpLineHeight(currentgp),
 						     vpWidthCM, vpHeightCM,
 						     dd);
 	break;
     case 3:
 	for (i=0; i<nx; i++)  
 	    REAL(result)[i] = transformHeighttoNative(x, i, vpc, 
-						      REAL(fontsize)[0], 
-						      REAL(lineheight)[0],
+						      gpFont(currentgp),
+						      gpFontSize(currentgp), 
+						      gpLineHeight(currentgp),
 						      vpWidthCM, vpHeightCM,
 						      dd);
 	break;
@@ -262,14 +499,7 @@ SEXP L_convertToNative(SEXP x, SEXP what,
  ***************************
  */
 
-/* Global "current location"
- * Initial setting relies on the fact that all values sent to devices
- * are in INCHES;  so (0, 0) is the bottom-left corner of the device.
- */
-double L_x = 0;
-double L_y = 0;
-
-SEXP L_moveTo(SEXP x, SEXP y, SEXP fontsize, SEXP lineheight, SEXP currentvp)
+SEXP L_moveTo(SEXP x, SEXP y)
 {    
     double xx, yy;
     double vpWidthCM, vpHeightCM;
@@ -278,23 +508,34 @@ SEXP L_moveTo(SEXP x, SEXP y, SEXP fontsize, SEXP lineheight, SEXP currentvp)
     LTransform transform;
     /* Get the current device 
      */
-    DevDesc *dd = CurrentDevice();
+    GEDevDesc *dd = getDevice();
+    SEXP currentvp = gridStateElement(dd, GSS_VP);
+    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
+    SEXP devloc;
+    PROTECT(devloc = gridStateElement(dd, GSS_CURRLOC));
     getViewportTransform(currentvp, dd, 
 			 &vpWidthCM, &vpHeightCM, 
 			 transform, &rotationAngle);
     getViewportContext(currentvp, &vpc);
     /* Convert the x and y values to CM locations */
-    transformLocn(x, y, 0, vpc, REAL(fontsize)[0], REAL(lineheight)[0],
+    transformLocn(x, y, 0, vpc, 
+		  gpFont(currentgp),
+		  gpFontSize(currentgp), gpLineHeight(currentgp),
 		  vpWidthCM, vpHeightCM,
 		  dd,
 		  transform,
 		  &xx, &yy);
-    L_x = xx;
-    L_y = yy;
+    /* The graphics engine only takes device coordinates
+     */
+    xx = toDeviceX(xx, GE_INCHES, dd);
+    yy = toDeviceY(yy, GE_INCHES, dd);
+    REAL(devloc)[0] = xx;
+    REAL(devloc)[1] = yy;
+    UNPROTECT(1);
     return R_NilValue;
 }
 
-SEXP L_lineTo(SEXP x, SEXP y, SEXP fontsize, SEXP lineheight, SEXP currentvp)
+SEXP L_lineTo(SEXP x, SEXP y)
 {
     double xx, yy;
     double vpWidthCM, vpHeightCM;
@@ -303,30 +544,43 @@ SEXP L_lineTo(SEXP x, SEXP y, SEXP fontsize, SEXP lineheight, SEXP currentvp)
     LTransform transform;
     /* Get the current device 
      */
-    DevDesc *dd = CurrentDevice();
+    GEDevDesc *dd = getDevice();
+    SEXP currentvp = gridStateElement(dd, GSS_VP);
+    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
+    SEXP devloc;
+    PROTECT(devloc = gridStateElement(dd, GSS_CURRLOC));
     getViewportTransform(currentvp, dd, 
 			 &vpWidthCM, &vpHeightCM, 
 			 transform, &rotationAngle);
     getViewportContext(currentvp, &vpc);
     /* Convert the x and y values to CM locations */
-    transformLocn(x, y, 0, vpc,  REAL(fontsize)[0], REAL(lineheight)[0],
+    transformLocn(x, y, 0, vpc,  
+		  gpFont(currentgp),
+		  gpFontSize(currentgp), gpLineHeight(currentgp),
 		  vpWidthCM, vpHeightCM,
 		  dd,
 		  transform,
 		  &xx, &yy);
-    GMode(1, dd);
-    GLine(L_x, L_y, xx, yy, INCHES, dd);
-    /* Indicate to the device that drawing has finished */
-    GMode(0, dd);
-    L_x = xx;
-    L_y = yy;
+    /* The graphics engine only takes device coordinates
+     */
+    xx = toDeviceX(xx, GE_INCHES, dd);
+    yy = toDeviceY(yy, GE_INCHES, dd);
+    GEMode(1, dd);
+    GELine(REAL(devloc)[0], REAL(devloc)[1], xx, yy, 
+	   gpCol(currentgp), gpGamma(currentgp),
+	   gpLineType(currentgp), gpLineWidth(currentgp), 
+	   dd);
+    GEMode(0, dd);
+    REAL(devloc)[0] = xx;
+    REAL(devloc)[1] = yy;
+    UNPROTECT(1);
     return R_NilValue;
 }
 
 /* We are assuming here that the R code has checked that x and y 
  * are unit objects and that vp is a viewport
  */
-SEXP L_lines(SEXP x, SEXP y, SEXP fontsize, SEXP lineheight, SEXP currentvp) 
+SEXP L_lines(SEXP x, SEXP y) 
 {
     int i, nx;
     double *xx, *yy;
@@ -336,7 +590,9 @@ SEXP L_lines(SEXP x, SEXP y, SEXP fontsize, SEXP lineheight, SEXP currentvp)
     LTransform transform;
     /* Get the current device 
      */
-    DevDesc *dd = CurrentDevice();
+    GEDevDesc *dd = getDevice();
+    SEXP currentvp = gridStateElement(dd, GSS_VP);
+    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
     getViewportTransform(currentvp, dd, 
 			 &vpWidthCM, &vpHeightCM, 
 			 transform, &rotationAngle);
@@ -346,24 +602,30 @@ SEXP L_lines(SEXP x, SEXP y, SEXP fontsize, SEXP lineheight, SEXP currentvp)
     xx = (double *) R_alloc(nx, sizeof(double));
     yy = (double *) R_alloc(nx, sizeof(double));
     for (i=0; i<nx; i++) {
-	transformLocn(x, y, i, vpc, REAL(fontsize)[0], REAL(lineheight)[0],
+	transformLocn(x, y, i, vpc, 
+		      gpFont(currentgp),
+		      gpFontSize(currentgp), gpLineHeight(currentgp),
 		      vpWidthCM, vpHeightCM,
 		      dd,
 		      transform,
 		      &(xx[i]), &(yy[i]));
+	/* The graphics engine only takes device coordinates
+	 */
+	xx[i] = toDeviceX(xx[i], GE_INCHES, dd);
+	yy[i] = toDeviceY(yy[i], GE_INCHES, dd);
     }
-    /* Indicate to the device that drawing is about to begin */
-    GMode(1, dd);
     /* FIXME:  Need to check for NaN's and NA's
      */
-    GPolyline(nx, xx, yy, INCHES, dd);
-    /* Indicate to the device that drawing has finished */
-    GMode(0, dd);
+    GEMode(1, dd);
+    GEPolyline(nx, xx, yy, 
+	       gpCol(currentgp), gpGamma(currentgp),
+	       gpLineType(currentgp), gpLineWidth(currentgp), 
+	       dd);
+    GEMode(0, dd);
     return R_NilValue;
 }
 
-SEXP L_segments(SEXP x0, SEXP y0, SEXP x1, SEXP y1, 
-		SEXP fontsize, SEXP lineheight, SEXP currentvp) 
+SEXP L_segments(SEXP x0, SEXP y0, SEXP x1, SEXP y1) 
 {
     int i, nx0, ny0, nx1, ny1, maxn;
     double vpWidthCM, vpHeightCM;
@@ -372,7 +634,9 @@ SEXP L_segments(SEXP x0, SEXP y0, SEXP x1, SEXP y1,
     LTransform transform;
     /* Get the current device 
      */
-    DevDesc *dd = CurrentDevice();
+    GEDevDesc *dd = getDevice();
+    SEXP currentvp = gridStateElement(dd, GSS_VP);
+    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
     getViewportTransform(currentvp, dd, 
 			 &vpWidthCM, &vpHeightCM, 
 			 transform, &rotationAngle);
@@ -387,29 +651,38 @@ SEXP L_segments(SEXP x0, SEXP y0, SEXP x1, SEXP y1,
 	maxn = nx1;
     if (ny1 > maxn)
 	maxn = ny1;
-    /* Indicate to the device that drawing is about to begin */
-    GMode(1, dd);
     /* Convert the x and y values to INCHES locations */
     /* FIXME:  Need to check for NaN's and NA's
      */
+    GEMode(1, dd);
     for (i=0; i<maxn; i++) {
 	double xx0, yy0, xx1, yy1;
-	transformLocn(x0, y0, i, vpc, REAL(fontsize)[0], REAL(lineheight)[0],
+	transformLocn(x0, y0, i, vpc, 
+		      gpFont(currentgp),
+		      gpFontSize(currentgp), gpLineHeight(currentgp),
 		      vpWidthCM, vpHeightCM,
 		      dd, transform, &xx0, &yy0);
-	transformLocn(x1, y1, i, vpc, REAL(fontsize)[0], REAL(lineheight)[0],
+	transformLocn(x1, y1, i, vpc, 
+		      gpFont(currentgp),
+		      gpFontSize(currentgp), gpLineHeight(currentgp),
 		      vpWidthCM, vpHeightCM,
 		      dd, transform, &xx1, &yy1);
-	GLine(xx0, yy0, xx1, yy1, INCHES, dd);
+	/* The graphics engine only takes device coordinates
+	 */
+	xx0 = toDeviceX(xx0, GE_INCHES, dd);
+	yy0 = toDeviceY(yy0, GE_INCHES, dd);
+	xx1 = toDeviceX(xx1, GE_INCHES, dd);
+	yy1 = toDeviceY(yy1, GE_INCHES, dd);
+	GELine(xx0, yy0, xx1, yy1, 
+	       gpCol(currentgp), gpGamma(currentgp),
+	       gpLineType(currentgp), gpLineWidth(currentgp),
+	       dd);
     }
-    /* Indicate to the device that drawing has finished */
-    GMode(0, dd);
+    GEMode(0, dd);
     return R_NilValue;
 }
 
-SEXP L_polygon(SEXP x, SEXP y,  
-	       SEXP border, SEXP fill, 
-	       SEXP fontsize, SEXP lineheight, SEXP currentvp)
+SEXP L_polygon(SEXP x, SEXP y)
 {
     int i, nx;
     double *xx, *yy;
@@ -419,7 +692,9 @@ SEXP L_polygon(SEXP x, SEXP y,
     LTransform transform;
     /* Get the current device 
      */
-    DevDesc *dd = CurrentDevice();
+    GEDevDesc *dd = getDevice();
+    SEXP currentvp = gridStateElement(dd, GSS_VP);
+    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
     getViewportTransform(currentvp, dd, 
 			 &vpWidthCM, &vpHeightCM, 
 			 transform, &rotationAngle);
@@ -429,27 +704,30 @@ SEXP L_polygon(SEXP x, SEXP y,
     xx = (double *) R_alloc(nx + 1, sizeof(double));
     yy = (double *) R_alloc(nx + 1, sizeof(double));
     for (i=0; i<nx; i++) {
-	transformLocn(x, y, i, vpc, REAL(fontsize)[0], REAL(lineheight)[0],
+	transformLocn(x, y, i, vpc, 
+		      gpFont(currentgp),
+		      gpFontSize(currentgp), gpLineHeight(currentgp),
 		      vpWidthCM, vpHeightCM,
 		      dd,
 		      transform,
 		      &(xx[i]), &(yy[i]));
+	/* The graphics engine only takes device coordinates
+	 */
+	xx[i] = toDeviceX(xx[i], GE_INCHES, dd);
+	yy[i] = toDeviceY(yy[i], GE_INCHES, dd);
     }
-    /* Indicate to the device that drawing is about to begin */
-    GMode(1, dd);
     /* FIXME:  Need to check for NaN's and NA's
      */
-    GPolygon(nx, xx, yy, INCHES, 
-	     INTEGER(FixupCol(fill, NA_INTEGER))[0], 
-	     INTEGER(FixupCol(border, NA_INTEGER))[0], dd);
-    /* Indicate to the device that drawing has finished */
-    GMode(0, dd);
+    GEMode(1, dd);
+    GEPolygon(nx, xx, yy, 
+	      gpCol(currentgp), gpFill(currentgp), gpGamma(currentgp),
+	      gpLineType(currentgp), gpLineWidth(currentgp),
+	      dd);
+    GEMode(0, dd);
     return R_NilValue;
 }
 
-SEXP L_circle(SEXP x, SEXP y, SEXP r,
-	      SEXP border, SEXP fill, 
-	      SEXP fontsize, SEXP lineheight, SEXP currentvp)
+SEXP L_circle(SEXP x, SEXP y, SEXP r)
 {
     int i, nx, nr;
     double xx, yy, rr1, rr2, rr;
@@ -459,7 +737,9 @@ SEXP L_circle(SEXP x, SEXP y, SEXP r,
     LTransform transform;
     /* Get the current device 
      */
-    DevDesc *dd = CurrentDevice();
+    GEDevDesc *dd = getDevice();
+    SEXP currentvp = gridStateElement(dd, GSS_VP);
+    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
     getViewportTransform(currentvp, dd, 
 			 &vpWidthCM, &vpHeightCM, 
 			 transform, &rotationAngle);
@@ -468,10 +748,11 @@ SEXP L_circle(SEXP x, SEXP y, SEXP r,
     nr = unitLength(r);
     /* FIXME:  Need to check for NaN's and NA's
      */
-    /* Indicate to the device that drawing is about to begin */
-    GMode(1, dd);
+    GEMode(1, dd);
     for (i=0; i<nx; i++) {
-	transformLocn(x, y, i, vpc, REAL(fontsize)[0], REAL(lineheight)[0],
+	transformLocn(x, y, i, vpc, 
+		      gpFont(currentgp),
+		      gpFontSize(currentgp), gpLineHeight(currentgp),
 		      vpWidthCM, vpHeightCM,
 		      dd,
 		      transform,
@@ -481,29 +762,36 @@ SEXP L_circle(SEXP x, SEXP y, SEXP r,
 	 * take the smaller of the two values.
 	 */
 	rr1 = transformWidthtoINCHES(r, i % nr, vpc, 
-				     REAL(fontsize)[0], REAL(lineheight)[0],
+				     gpFont(currentgp),
+				     gpFontSize(currentgp), 
+				     gpLineHeight(currentgp),
 				     vpWidthCM, vpHeightCM,
 				     dd);
 	rr2 = transformHeighttoINCHES(r, i % nr, vpc, 
-				      REAL(fontsize)[0], REAL(lineheight)[0],
+				      gpFont(currentgp),
+				      gpFontSize(currentgp), 
+				      gpLineHeight(currentgp),
 				      vpWidthCM, vpHeightCM,
 				      dd);
 	rr = fmin2(rr1, rr2);
-	GCircle(xx, yy, INCHES, rr, 
-		INTEGER(FixupCol(fill, NA_INTEGER))[0], 
-		INTEGER(FixupCol(border, NA_INTEGER))[0], dd);
+	rr = toDeviceWidth(rr, GE_INCHES, dd);
+	/* The graphics engine only takes device coordinates
+	 */
+	xx = toDeviceX(xx, GE_INCHES, dd);
+	yy = toDeviceY(yy, GE_INCHES, dd);
+	GECircle(xx, yy, rr, 
+		gpCol(currentgp), gpFill(currentgp), gpGamma(currentgp),
+		gpLineType(currentgp), gpLineWidth(currentgp),
+		dd);
     }
-    /* Indicate to the device that drawing has finished */
-    GMode(0, dd);
+    GEMode(0, dd);
     return R_NilValue;
 }
 
 /* We are assuming here that the R code has checked that 
  * x, y, w, and h are all unit objects and that vp is a viewport
  */
-SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h, SEXP just,
-	    SEXP border, SEXP fill, 
-	    SEXP fontsize, SEXP lineheight, SEXP currentvp) 
+SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h, SEXP just) 
 {
     double xx, yy, ww, hh;
     double vpWidthCM, vpHeightCM;
@@ -513,7 +801,9 @@ SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h, SEXP just,
     LTransform transform;
     /* Get the current device 
      */
-    DevDesc *dd = CurrentDevice();
+    GEDevDesc *dd = getDevice();
+    SEXP currentvp = gridStateElement(dd, GSS_VP);
+    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
     getViewportTransform(currentvp, dd, 
 			 &vpWidthCM, &vpHeightCM, 
 			 transform, &rotationAngle);
@@ -521,39 +811,26 @@ SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h, SEXP just,
     /* FIXME:  Need to check for x, y, w, h all same length
      */
     nx = unitLength(x); 
-    /* FIXME: Force a clip - I think there is a bug in GRect which means 
-     * that GClip is not called when the rect is completely within 
-     * the clipping region.  This is masked in normal graphics
-     * by GNewPlot which does a GForceClip.
-     * In lattice graphics there is no GNewPlot so clipping doesn't
-     * happen elsewhere and the GRect bug is exposed.
-     * In other words, this can be removed once the GRect bug is fixed.
-     * To see the bug in action, comment out the line below and 
-     * try lshow.viewport(viewport()) and resize the window.
-     * Why do we want to call GClip ?  Well, so that it calls X11_clip
-     * which will update the clipping region for the device, which we
-     * need because the device size has changed.  
-     * Having said that, maybe the problem is not at GRect (because 
-     * GClip will only call X11_clip if par(xpd) has changed !) but
-     * rather with the fact that lattice graphics does not have an
-     * euivalent of GNewPlot (yet anyway) where a GForceClip can be
-     * conveniently placed.
-     */
-    GForceClip(dd);
-    /* Indicate to the device that drawing is about to begin */
-    GMode(1, dd);
+    GEMode(1, dd);
     for (i=0; i<nx; i++) {
-	transformLocn(x, y, i, vpc, REAL(fontsize)[0], REAL(lineheight)[0],
+	transformLocn(x, y, i, vpc, 
+		      gpFont(currentgp),
+		      gpFontSize(currentgp), 
+		      gpLineHeight(currentgp),
 		      vpWidthCM, vpHeightCM,
 		      dd,
 		      transform,
 		      &xx, &yy);
 	ww = transformWidthtoINCHES(w, i, vpc, 
-				    REAL(fontsize)[0], REAL(lineheight)[0],
+				    gpFont(currentgp),
+				    gpFontSize(currentgp), 
+				    gpLineHeight(currentgp),
 				    vpWidthCM, vpHeightCM,
 				    dd);
 	hh = transformHeighttoINCHES(h, i, vpc, 
-				     REAL(fontsize)[0], REAL(lineheight)[0],
+				     gpFont(currentgp),
+				     gpFontSize(currentgp), 
+				     gpLineHeight(currentgp),
 				     vpWidthCM, vpHeightCM,
 				     dd);
 	/* FIXME:  Need to check for NaN's and NA's
@@ -565,9 +842,16 @@ SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h, SEXP just,
 	if (rotationAngle == 0) {
 	    xx = justifyX(xx, ww, INTEGER(just)[0]);
 	    yy = justifyY(yy, hh, INTEGER(just)[1]);
-	    GRect(xx, yy, xx + ww, yy + hh, INCHES, 
-		  INTEGER(FixupCol(fill, NA_INTEGER))[0], 
-		  INTEGER(FixupCol(border, NA_INTEGER))[0], dd);
+	    /* The graphics engine only takes device coordinates
+	     */
+	    xx = toDeviceX(xx, GE_INCHES, dd);
+	    yy = toDeviceY(yy, GE_INCHES, dd);
+	    ww = toDeviceWidth(ww, GE_INCHES, dd);
+	    hh = toDeviceHeight(hh, GE_INCHES, dd);
+	    GERect(xx, yy, xx + ww, yy + hh, 
+		   gpCol(currentgp), gpFill(currentgp), gpGamma(currentgp),
+		   gpLineType(currentgp), gpLineWidth(currentgp),
+		   dd);
 	} else {
 	    /* We have to do a little bit of work to figure out where the 
 	     * corners of the rectangle are.
@@ -582,7 +866,8 @@ SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h, SEXP just,
 	    www = unit(xadj, L_INCHES);
 	    hhh = unit(yadj, L_INCHES);
 	    transformDimn(www, hhh, 0, vpc, 
-			  REAL(fontsize)[0], REAL(lineheight)[0],
+			  gpFont(currentgp),
+			  gpFontSize(currentgp), gpLineHeight(currentgp),
 			  vpWidthCM, vpHeightCM,
 			  dd, rotationAngle,
 			  &dw, &dh);
@@ -592,7 +877,8 @@ SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h, SEXP just,
 	    www = temp;
 	    hhh = unit(hh, L_INCHES);
 	    transformDimn(www, hhh, 0, vpc, 
-			  REAL(fontsize)[0], REAL(lineheight)[0],
+			  gpFont(currentgp),
+			  gpFontSize(currentgp), gpLineHeight(currentgp),
 			  vpWidthCM, vpHeightCM,
 			  dd, rotationAngle,
 			  &dw, &dh);
@@ -602,7 +888,8 @@ SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h, SEXP just,
 	    www = unit(ww, L_INCHES);
 	    hhh = unit(hh, L_INCHES);
 	    transformDimn(www, hhh, 0, vpc, 
-			  REAL(fontsize)[0], REAL(lineheight)[0],
+			  gpFont(currentgp),
+			  gpFontSize(currentgp), gpLineHeight(currentgp),
 			  vpWidthCM, vpHeightCM,
 			  dd, rotationAngle,
 			  &dw, &dh);
@@ -612,36 +899,45 @@ SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h, SEXP just,
 	    www = unit(ww, L_INCHES);
 	    hhh = temp;
 	    transformDimn(www, hhh, 0, vpc, 
-			  REAL(fontsize)[0], REAL(lineheight)[0],
+			  gpFont(currentgp),
+			  gpFontSize(currentgp), gpLineHeight(currentgp),
 			  vpWidthCM, vpHeightCM,
 			  dd, rotationAngle,
 			  &dw, &dh);
 	    xxx[3] = xxx[0] + dw;
 	    yyy[3] = yyy[0] + dh;
+	    /* The graphics engine only takes device coordinates
+	     */
+	    xxx[0] = toDeviceX(xxx[0], GE_INCHES, dd);
+	    yyy[0] = toDeviceY(yyy[0], GE_INCHES, dd);
+	    xxx[1] = toDeviceX(xxx[1], GE_INCHES, dd);
+	    yyy[1] = toDeviceY(yyy[1], GE_INCHES, dd);
+	    xxx[2] = toDeviceX(xxx[2], GE_INCHES, dd);
+	    yyy[2] = toDeviceY(yyy[2], GE_INCHES, dd);
+	    xxx[3] = toDeviceX(xxx[3], GE_INCHES, dd);
+	    yyy[3] = toDeviceY(yyy[3], GE_INCHES, dd);
 	    /* Close the polygon */
 	    xxx[4] = xxx[0];
 	    yyy[4] = yyy[0];
 	    /* Do separate fill and border to avoid border being 
 	     * drawn on clipping boundary when there is a fill
 	     */
-	    if (!isNull(fill))
-		GPolygon(5, xxx, yyy, INCHES, 
-			 INTEGER(FixupCol(fill, NA_INTEGER))[0], 
-			 NA_INTEGER, dd);
-	    if (!isNull(border))
-		GPolygon(5, xxx, yyy, INCHES, 
-			 NA_INTEGER,
-			 INTEGER(FixupCol(border, NA_INTEGER))[0], dd);
+	    GEPolygon(5, xxx, yyy, 
+		      NA_INTEGER, gpFill(currentgp), gpGamma(currentgp),
+		      gpLineType(currentgp), gpLineWidth(currentgp),
+		      dd);
+	    GEPolygon(5, xxx, yyy, 
+		      gpCol(currentgp), NA_INTEGER, gpGamma(currentgp),
+		      gpLineType(currentgp), gpLineWidth(currentgp),
+		      dd);
 	}
     }
-    /* Indicate to the device that drawing has finished */
-    GMode(0, dd);
+    GEMode(0, dd);
     return R_NilValue;
 }
 
 SEXP L_text(SEXP label, SEXP x, SEXP y, SEXP just, 
-	    SEXP rot, SEXP checkOverlap, 
-	    SEXP fontsize, SEXP lineheight, SEXP currentvp)
+	    SEXP rot, SEXP checkOverlap)
 {
     int i, nx, ny;
     double *xx, *yy;
@@ -657,7 +953,9 @@ SEXP L_text(SEXP label, SEXP x, SEXP y, SEXP just,
     int overlapChecking = LOGICAL(checkOverlap)[0];
     /* Get the current device 
      */
-    DevDesc *dd = CurrentDevice();
+    GEDevDesc *dd = getDevice();
+    SEXP currentvp = gridStateElement(dd, GSS_VP);
+    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
     getViewportTransform(currentvp, dd, 
 			 &vpWidthCM, &vpHeightCM, 
 			 transform, &rotationAngle);
@@ -671,7 +969,9 @@ SEXP L_text(SEXP label, SEXP x, SEXP y, SEXP just,
     xx = (double *) R_alloc(nx, sizeof(double));
     yy = (double *) R_alloc(nx, sizeof(double));
     for (i=0; i<nx; i++) {
-	transformLocn(x, y, i, vpc, REAL(fontsize)[0], REAL(lineheight)[0],
+	transformLocn(x, y, i, vpc, 
+		      gpFont(currentgp),
+		      gpFontSize(currentgp), gpLineHeight(currentgp),
 		      vpWidthCM, vpHeightCM,
 		      dd,
 		      transform,
@@ -680,8 +980,7 @@ SEXP L_text(SEXP label, SEXP x, SEXP y, SEXP just,
     if (overlapChecking) {
 	bounds = (LRect *) R_alloc(nx, sizeof(LRect));
     }
-    /* Indicate to the device that drawing is about to begin */
-    GMode(1, dd);
+    GEMode(1, dd);
     for (i=0; i<nx; i++) {
 	int doDrawing = 1;
 	if (overlapChecking) {
@@ -689,6 +988,7 @@ SEXP L_text(SEXP label, SEXP x, SEXP y, SEXP just,
 	    LRect trect;
 	    textRect(xx[i], yy[i], 
 		     CHAR(STRING_ELT(label, i % LENGTH(label))), 
+		     gpFont(currentgp), 1, gpFontSize(currentgp),
 		     hjust, vjust, 
 		     numeric(rot, i % LENGTH(rot)) + rotationAngle, 
 		     dd, &trect);
@@ -700,24 +1000,27 @@ SEXP L_text(SEXP label, SEXP x, SEXP y, SEXP just,
 		numBounds++;
 	    }
 	}
-	if (doDrawing)
+	if (doDrawing) {
 	    /* FIXME:  Need to check for NaN's and NA's
 	     */
-	    GText(xx[i], yy[i], INCHES, 
-		  CHAR(STRING_ELT(label, i % LENGTH(label))), 
-		  hjust, vjust, 
-		  numeric(rot, i % LENGTH(rot)) + rotationAngle, dd);
+	    /* The graphics engine only takes device coordinates
+	     */
+	    xx[i] = toDeviceX(xx[i], GE_INCHES, dd);
+	    yy[i] = toDeviceY(yy[i], GE_INCHES, dd);
+	    GEText(xx[i], yy[i], 
+		   CHAR(STRING_ELT(label, i % LENGTH(label))), 
+		   hjust, vjust, 
+		   numeric(rot, i % LENGTH(rot)) + rotationAngle, 
+		   gpCol(currentgp), gpGamma(currentgp), gpFont(currentgp),
+		   gpCex(currentgp), gpFontSize(currentgp),
+		   dd);
+	}
     }
-    /* Indicate to the device that drawing has finished */
-    GMode(0, dd);
+    GEMode(0, dd);
     return R_NilValue;    
 }
 
-void myGSymbol(double x, double y, int coords, int pch, int col, int bg,
-	       double GSTR_0, DevDesc *dd);
-
-SEXP L_points(SEXP x, SEXP y, SEXP pch, SEXP size, SEXP col, SEXP bg,
-	      SEXP fontsize, SEXP lineheight, SEXP currentvp)
+SEXP L_points(SEXP x, SEXP y, SEXP pch, SEXP size)
 {
     int i, nx, npch;
     /*    double *xx, *yy;*/
@@ -729,7 +1032,9 @@ SEXP L_points(SEXP x, SEXP y, SEXP pch, SEXP size, SEXP col, SEXP bg,
     LTransform transform;
     /* Get the current device 
      */
-    DevDesc *dd = CurrentDevice();
+    GEDevDesc *dd = getDevice();
+    SEXP currentvp = gridStateElement(dd, GSS_VP);
+    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
     getViewportTransform(currentvp, dd, 
 			 &vpWidthCM, &vpHeightCM, 
 			 transform, &rotationAngle);
@@ -740,17 +1045,27 @@ SEXP L_points(SEXP x, SEXP y, SEXP pch, SEXP size, SEXP col, SEXP bg,
     xx = (double *) R_alloc(nx, sizeof(double));
     yy = (double *) R_alloc(nx, sizeof(double));
     for (i=0; i<nx; i++) {
-	transformLocn(x, y, i, vpc, REAL(fontsize)[0], REAL(lineheight)[0],
+	transformLocn(x, y, i, vpc, 
+		      gpFont(currentgp),
+		      gpFontSize(currentgp), gpLineHeight(currentgp),
 		      vpWidthCM, vpHeightCM,
 		      dd,
 		      transform,
 		      &(xx[i]), &(yy[i]));
+	/* The graphics engine only takes device coordinates
+	 */
+	xx[i] = toDeviceX(xx[i], GE_INCHES, dd);
+	yy[i] = toDeviceY(yy[i], GE_INCHES, dd);
     }
     symbolSize = transformWidthtoINCHES(size, 0, vpc, 
-					REAL(fontsize)[0], REAL(lineheight)[0],
+					gpFont(currentgp),
+					gpFontSize(currentgp), 
+					gpLineHeight(currentgp),
 					vpWidthCM, vpHeightCM, dd);
-    /* Indicate to the device that drawing is about to begin */
-    GMode(1, dd);
+    /* The graphics engine only takes device coordinates
+     */
+    symbolSize = toDeviceWidth(symbolSize, GE_INCHES, dd);
+    GEMode(1, dd);
     for (i=0; i<nx; i++)
 	if (R_FINITE(xx[i]) && R_FINITE(yy[i]))
 	    /* FIXME:  The symbols will not respond to viewport
@@ -759,14 +1074,13 @@ SEXP L_points(SEXP x, SEXP y, SEXP pch, SEXP size, SEXP col, SEXP bg,
 	     * use a unit to specify the size of symbols rather
 	     * than just cex
 	     */
-	    myGSymbol(xx[i], yy[i], INCHES, 
-		      INTEGER(FixupPch(pch, 1))[i % npch], 
-		      INTEGER(FixupCol(col, 1))[0], 
-		      INTEGER(FixupCol(bg, 1))[0],
-		      symbolSize,
-		      dd);
-    /* Indicate to the device that drawing has finished */
-    GMode(0, dd);
+	    GESymbol(xx[i], yy[i], INTEGER(pch)[i % npch], symbolSize,
+		     gpCol(currentgp), gpFill(currentgp), gpGamma(currentgp),
+		     gpLineType(currentgp), gpLineWidth(currentgp),
+		     gpFont(currentgp), gpCex(currentgp), 
+		     gpFontSize(currentgp),
+		     dd);
+    GEMode(0, dd);
     return R_NilValue;
 }
 
@@ -781,7 +1095,7 @@ SEXP L_pretty(SEXP scale) {
     double axp[3];
     /* FIXME:  Default preferred number of ticks hard coded ! */
     int n = 5;
-    GPretty(&min, &max, &n);
+    GEPretty(&min, &max, &n);
     axp[0] = min;
     axp[1] = max;
     axp[2] = n;
@@ -791,283 +1105,8 @@ SEXP L_pretty(SEXP scale) {
     return CreateAtVector(axp, usr, n, FALSE);
 }
 
-#define SMALL	0.25
-#define RADIUS	0.375 
-#define SQRC	0.88622692545275801364		/* sqrt(pi / 4) */
-#define DMDC	1.25331413731550025119		/* sqrt(pi / 4) * sqrt(2) */
-#define TRC0	1.55512030155621416073		/* sqrt(4 * pi/(3 * sqrt(3))) */
-#define TRC1	1.34677368708859836060		/* TRC0 * sqrt(3) / 2 */
-#define TRC2	0.77756015077810708036		/* TRC0 / 2 */
-#define CMAG	1.0				/* Circle magnifier, now defunct */
-/* #define GSTR_0  dd->dp.cra[1] * 0.5 * dd->gp.ipr[0] * dd->gp.cex */ 
-/* Draw one of the R special symbols. */
-void myGSymbol(double x, double y, int coords, int pch, int col, int bg,
-	       double GSTR_0, DevDesc *dd)
-{
-    double r, xc, yc;
-    double xx[4], yy[4];
-    char str[2];
-
-    if(' ' <= pch && pch <= 255) {
-	if (pch == '.') {
-	    GConvert(&x, &y, coords, DEVICE, dd);
-	    GRect(x-.5, y-.5, x+.5, y+.5, DEVICE, col, NA_INTEGER, dd);
-	} else {
-	    str[0] = pch;
-	    str[1] = '\0';
-	    GText(x, y, coords, str, NA_REAL, NA_REAL, 0., dd);
-	}
-    }
-    else {
-	switch(pch) {
-
-	case 0: /* S square */
-	    xc = RADIUS * GSTR_0;
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    GRect(x-xc, y-xc, x+xc, y+xc, INCHES, NA_INTEGER,
-		  col, dd);
-	    break;
-
-	case 1: /* S octahedron ( circle) */
-	    xc = CMAG * RADIUS * GSTR_0;
-	    GCircle(x, y, coords, xc, NA_INTEGER, col, dd);
-	    break;
-
-	case 2:	/* S triangle - point up */
-	    xc = RADIUS * GSTR_0;
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    r = TRC0 * xc;
-	    yc = TRC2 * xc;
-	    xc = TRC1 * xc;
-	    xx[0] = x; yy[0] = y+r;
-	    xx[1] = x+xc; yy[1] = y-yc;
-	    xx[2] = x-xc; yy[2] = y-yc;
-	    GPolygon(3, xx, yy, INCHES, NA_INTEGER, col, dd);
-	    break;
-
-	case 3: /* S plus */
-	    xc = M_SQRT2*RADIUS*GSTR_0;
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    GLine(x-xc, y, x+xc, y, INCHES, dd);
-	    GLine(x, y-xc, x, y+xc, INCHES, dd);
-	    break;
-
-	case 4: /* S times */
-	    xc = RADIUS * GSTR_0;
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    GLine(x-xc, y-xc, x+xc, y+xc, INCHES, dd);
-	    GLine(x-xc, y+xc, x+xc, y-xc, INCHES, dd);
-	    break;
-
-	case 5: /* S diamond */
-	    xc = M_SQRT2 * RADIUS * GSTR_0;
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    xx[0] = x-xc; yy[0] = y;
-	    xx[1] = x; yy[1] = y+xc;
-	    xx[2] = x+xc; yy[2] = y;
-	    xx[3] = x; yy[3] = y-xc;
-	    GPolygon(4, xx, yy, INCHES, NA_INTEGER, col, dd);
-	    break;
-
-	case 6: /* S triangle - point down */
-	    xc = RADIUS * GSTR_0;
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    r = TRC0 * xc;
-	    yc = TRC2 * xc;
-	    xc = TRC1 * xc;
-	    xx[0] = x; yy[0] = y-r;
-	    xx[1] = x+xc; yy[1] = y+yc;
-	    xx[2] = x-xc; yy[2] = y+yc;
-	    GPolygon(3, xx, yy, INCHES, NA_INTEGER, col, dd);
-	    break;
-
-	case 7:	/* S square and times superimposed */
-	    xc =  RADIUS * GSTR_0;
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    GLine(x-xc, y-xc, x+xc, y+xc, INCHES, dd);
-	    GLine(x-xc, y+xc, x+xc, y-xc, INCHES, dd);
-	    GRect(x-xc, y-xc, x+xc, y+xc, INCHES, NA_INTEGER,
-		  col, dd);
-	    break;
-
-	case 8: /* S plus and times superimposed */
-	    xc =  RADIUS * GSTR_0;
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    GLine(x-xc, y-xc, x+xc, y+xc, INCHES, dd);
-	    GLine(x-xc, y+xc, x+xc, y-xc, INCHES, dd);
-	    xc = M_SQRT2 * xc;
-	    GLine(x-xc, y, x+xc, y, INCHES, dd);
-	    GLine(x, y-xc, x, y+xc, INCHES, dd);
-	    break;
-
-	case 9: /* S diamond and plus superimposed */
-	    xc = M_SQRT2 * RADIUS * GSTR_0;
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    xx[0] = x-xc; yy[0] = y;
-	    xx[1] = x; yy[1] = y+xc;
-	    xx[2] = x+xc; yy[2] = y;
-	    xx[3] = x; yy[3] = y-xc;
-	    GPolygon(4, xx, yy, INCHES, NA_INTEGER, col, dd);
-	    GLine(x-xc, y, x+xc, y, INCHES, dd);
-	    GLine(x, y-xc, x, y+xc, INCHES, dd);
-	    break;
-
-	case 10: /* S hexagon (circle) and plus superimposed */
-	    xc = CMAG * RADIUS * GSTR_0;
-	    GCircle(x, y, coords, xc, NA_INTEGER, col, dd);
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    GLine(x-xc, y, x+xc, y, INCHES, dd);
-	    GLine(x, y-xc, x, y+xc, INCHES, dd);
-	    break;
-
-	case 11: /* S superimposed triangles */
-	    xc = RADIUS * GSTR_0;
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    r = TRC0 * xc;
-	    yc = TRC2 * xc;
-	    yc = 0.5 * (yc + r);
-	    xc = TRC1 * xc;
-	    xx[0] = x; yy[0] = y+r;
-	    xx[1] = x+xc; yy[1] = y-yc;
-	    xx[2] = x-xc; yy[2] = y-yc;
-	    GPolygon(3, xx, yy, INCHES, NA_INTEGER, col, dd);
-	    xx[0] = x; yy[0] = y-r;
-	    xx[1] = x+xc; yy[1] = y+yc;
-	    xx[2] = x-xc; yy[2] = y+yc;
-	    GPolygon(3, xx, yy, INCHES, NA_INTEGER, col, dd);
-	    break;
-
-	case 12: /* S square and plus superimposed */
-	    xc = RADIUS * GSTR_0;
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    GLine(x-xc, y, x+xc, y, INCHES, dd);
-	    GLine(x, y-xc, x, y+xc, INCHES, dd);
-	    GRect(x-xc, y-xc, x+xc, y+xc, INCHES,
-		  NA_INTEGER, col, dd);
-	    break;
-
-	case 13: /* S octagon (circle) and times superimposed */
-	    xc = CMAG * RADIUS * GSTR_0;
-	    GCircle(x, y, coords, xc, NA_INTEGER, col, dd);
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    GLine(x-xc, y-xc, x+xc, y+xc, INCHES, dd);
-	    GLine(x-xc, y+xc, x+xc, y-xc, INCHES, dd);
-	    break;
-
-	case 14: /* S square and point-up triangle superimposed */
-	    xc = RADIUS * GSTR_0;
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    xx[0] = x; yy[0] = y+xc;
-	    xx[1] = x+xc; yy[1] = y-xc;
-	    xx[2] = x-xc; yy[2] = y-xc;
-	    GPolygon(3, xx, yy, INCHES, NA_INTEGER, col, dd);
-	    GRect(x-xc, y-xc, x+xc, y+xc, INCHES,
-		  NA_INTEGER, col, dd);
-	    break;
-
-	case 15: /* S filled square */
-	    xc = RADIUS * GSTR_0;
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    xx[0] = x-xc; yy[0] = y-xc;
-	    xx[1] = x+xc; yy[1] = y-xc;
-	    xx[2] = x+xc; yy[2] = y+xc;
-	    xx[3] = x-xc; yy[3] = y+xc;
-	    GPolygon(4, xx, yy, INCHES, col,
-		     NA_INTEGER, dd);
-	    break;
-
-	case 16: /* S filled octagon (circle) */
-	    xc = RADIUS * GSTR_0;
-	    GCircle(x, y, coords, xc, col, col, dd);
-	    break;
-
-	case 17: /* S filled point-up triangle */
-	    xc = RADIUS * GSTR_0;
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    r = TRC0 * xc;
-	    yc = TRC2 * xc;
-	    xc = TRC1 * xc;
-	    xx[0] = x;	  yy[0] = y+r;
-	    xx[1] = x+xc; yy[1] = y-yc;
-	    xx[2] = x-xc; yy[2] = y-yc;
-	    GPolygon(3, xx, yy, INCHES, col,
-		     NA_INTEGER, dd);
-	    break;
-
-	case 18: /* S filled diamond */
-	    xc = RADIUS * GSTR_0;
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    xx[0] = x;	  yy[0] = y-xc;
-	    xx[1] = x+xc; yy[1] = y;
-	    xx[2] = x;	  yy[2] = y+xc;
-	    xx[3] = x-xc; yy[3] = y;
-	    GPolygon(4, xx, yy, INCHES, col,
-		     NA_INTEGER, dd);
-	    break;
-
-	case 19: /* R filled circle */
-	    xc = RADIUS * GSTR_0;
-	    GCircle(x, y, coords, xc, col, col, dd);
-	    break;
 
 
-	case 20: /* R `Dot' (small circle) */
-	    xc = SMALL * GSTR_0;
-	    GCircle(x, y, coords, xc, col, col, dd);
-	    break;
-
-
-	case 21: /* circles */
-	    xc = RADIUS * CMAG * GSTR_0;
-	    GCircle(x, y, coords, xc, bg, col, dd);
-	    break;
-
-	case  22: /* squares */
-	    xc = RADIUS * SQRC * GSTR_0;
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    GRect(x-xc, y-xc, x+xc, y+xc, INCHES,
-		  bg, col, dd);
-	    break;
-
-	case 23: /* diamonds */
-	    xc = RADIUS * DMDC * GSTR_0;
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    xx[0] = x	  ; yy[0] = y-xc;
-	    xx[1] = x+xc; yy[1] = y;
-	    xx[2] = x	  ; yy[2] = y+xc;
-	    xx[3] = x-xc; yy[3] = y;
-	    GPolygon(4, xx, yy, INCHES,
-		     bg, col, dd);
-	    break;
-
-	case 24: /* triangle (point up) */
-	    xc = RADIUS * GSTR_0;
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    r = TRC0 * xc;
-	    yc = TRC2 * xc;
-	    xc = TRC1 * xc;
-	    xx[0] = x;	  yy[0] = y+r;
-	    xx[1] = x+xc; yy[1] = y-yc;
-	    xx[2] = x-xc; yy[2] = y-yc;
-	    GPolygon(3, xx, yy, INCHES,
-		     bg, col, dd);
-	    break;
-
-	case 25: /* triangle (point down) */
-	    xc = RADIUS * GSTR_0;
-	    GConvert(&x, &y, coords, INCHES, dd);
-	    r = TRC0 * xc;
-	    yc = TRC2 * xc;
-	    xc = TRC1 * xc;
-	    xx[0] = x;	  yy[0] = y-r;
-	    xx[1] = x+xc; yy[1] = y+yc;
-	    xx[2] = x-xc; yy[2] = y+yc;
-	    GPolygon(3, xx, yy, INCHES,
-		     bg, col, dd);
-	    break;
-	}
-    }
-}
 
 
 

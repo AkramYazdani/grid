@@ -1,55 +1,17 @@
+
+# This should be the only grid global variable(?)
+# It contains the list of state structures corresponding to the
+# state for each device.
+# The state structures are stored in here so that they do not
+# get garbage collected.
+.GRID.STATE <- NULL
+
 # FIXME:  all grid functions should check that .grid.started is TRUE
-.grid.started <- FALSE
-.grid.saved.pars <- NULL
-# We rely on this being set to a valid viewport by a call to set.viewport()
-# (in a call to lstart() in .First.lib)
-.grid.viewport <- NULL
+.grid.loaded <- FALSE
 
-# Call this function before you do any grid graphics
-# This function is called by .First.lib so in simple usage
-# the user need never know about it.
-# Simple usage means:
-#     library(grid), <grid drawing>[, detach(package:grid)]
-# Set newpage=FALSE if you want to do grid graphics without advancing a page
-grid.start <- function(newpage=TRUE) {
-  # NOTE that this starts a device as a side-effect
-  .grid.saved.pars <<- par(xpd=NA, mfrow=c(1, 1),
-                              oma=rep(0, 4), mar=rep(0, 4))
-  # Install some default par settings
-  set.gpar(gpar(fontsize=10, lineheight=1.2))
-  if (newpage)
-    grid.newpage()
-  else
-    .Call("L_initDevice")
-  .grid.started <<- TRUE
-}
-
-# Call this function once you have finished with grid graphics
-# This function is called by .Last.lib so in simple usage
-# the user need never know about it.
-# Simple usage means:
-#     library(grid), <grid drawing>, detach(package:grid)
-grid.stop <- function() {
-  par(.grid.saved.pars)
-  .grid.started <<- FALSE
-}
-
-grid.init.viewport.stack <- function(recording=TRUE) {
-  # Create a viewport WITH default cur.lineheight and cur.fontsize
-  # This is the top-level viewport
-  # This function and push/pop.viewport should be the ONLY places
-  # where set.viewport gets called
-  # This is the ONLY viewport that gets sent to set.viewport
-  # WITHOUT going via push/pop.viewport
-  # Hence we must set its cur.lineheight/fontsize
-  vp <- viewport()
-  if (recording)
-    record(vp)
-  vp$cur.lineheight <- 1.2
-  vp$cur.fontsize <- 10
-  # NOTE that L_setviewport does 
-  #   .grid.viewport <<- vp
-  .Call.graphics("L_setviewport", vp, FALSE)
+# Define a convenience function that is easy to call from C code
+grid.top.level.vp <- function() {
+  viewport(clip=TRUE)
 }
 
 push.vp <- function(vps, index, len, recording) {
@@ -66,15 +28,12 @@ push.vp <- function(vps, index, len, recording) {
   # the viewport for its gpar settings because the viewport may only
   # specify some gpar values.  So we record the default settings
   # we will need to know about
-  vp$cur.fontsize <- par("ps")
+  vp$cur.font <- get.gpar("font")
+  vp$cur.fontsize <- get.gpar("fontsize")
   vp$cur.lineheight <- get.gpar("lineheight")
   # Calculate viewport transform 
   # NOTE that we will have modified "vp" within L_setviewport
   # to record the current transformation and layout
-  # NOTE also that L_setviewport does 
-  #   vp$parent <- .grid.viewport
-  # ... calc transform ...
-  #   .grid.viewport <<- vp
   .Call.graphics("L_setviewport", vp, TRUE)
   # Push further viewports if required
   if (index < len) 
@@ -92,17 +51,13 @@ push.viewport <- function(..., recording=TRUE) {
 }
 
 pop.vp <- function(last.one, recording) {
-  vp <- .grid.viewport
+  vp <- .Call("L_currentViewport")
   # Fail if trying to pop top-level viewport
   if (is.null(vp$parent))
     stop("Illegal to pop top-level viewport")
   # Unset gpar settings
   unset.gpar(vp$gp)
   # Allow for recalculation of viewport transform if necessary
-  # NOTE that L_checkviewport does
-  #   new.vp <- .grid.viewport$parent
-  # ... recalc viewport transform if necessary ...
-  #   .grid.viewport <<- new.vp
   .Call.graphics("L_unsetviewport", last.one)
 }
 
@@ -130,14 +85,9 @@ pop.viewport <- function(n=1, recording=TRUE) {
 # current viewport (see e.g., lgrid)
 current.viewport <- function(vp=NULL) {
   if (is.null(vp))
-    .grid.viewport
+    .Call("L_currentViewport")
   else
     vp
-}
-
-clearpage <- function() {
-  .Call("L_newpagerecording", par("ask"))
-  .Call.graphics("L_newpage")
 }
 
 # Call this function if you want the graphics device erased or moved
@@ -147,77 +97,70 @@ clearpage <- function() {
 # so that they can use your function within a parent viewport
 # (rather than the whole device) if they want to.
 grid.newpage <- function(recording=TRUE) {
-  clearpage()
+  .Call("L_newpagerecording", par("ask"))
+  .Call("L_newpage")
+  .Call("L_initGPar")
+  .Call("L_initViewportStack")
   if (recording)
-    # Erase the Grid display list
-    clear.display.list()  
-  # Reset the current viewport to be the entire device
-  # (Is this an ok thing to do ?)
-  grid.init.viewport.stack(recording=recording)
+    .Call("L_initDisplayList")
 }
+
+###########
+# DISPLAY LIST FUNCTIONS
+###########
 
 # Keep a list of all drawing operations (since last grid.newpage()) so
 # that we can redraw upon edit.
-# FIXME:  Need list like this PER DEVICE
-.grid.display.list <- vector("list", 100)
-.grid.display.list.index <- 0
-# Flag to indicate whether to record graphics operations
-# record() and clear.display.list() check this value before
-# they do anything
-.grid.display.list.on <- 1
 
 inc.display.list <- function() {
-  .grid.display.list.index <<- .grid.display.list.index + 1
-  n <- length(.grid.display.list)
-  if (.grid.display.list.index > n) {
-    temp <- .grid.display.list
-    .grid.display.list <<- vector("list", n+100)
-    .grid.display.list[1:n] <<- temp
+  display.list <- .Call("L_getDisplayList")
+  dl.index <- .Call("L_getDLindex")
+  dl.index <- dl.index + 1
+  n <- length(display.list)
+  # The " - 1" below is because dl.index is now stored internally
+  # so is a C-style zero-based index rather than an R-style
+  # 1-based index
+  if (dl.index > (n - 1)) {
+    temp <- display.list
+    display.list <- vector("list", n+100)
+    display.list[1:n] <- temp
   }
+  .Call("L_setDisplayList", display.list)
+  .Call("L_setDLindex", as.integer(dl.index))
 }
 
 # This will either ...
 #   (i) turn on AND INITIALISE the display list or ...
 #   (ii) turn off AND ERASE the display list
 grid.display.list <- function(on=TRUE) {
-  .grid.display.list.on <<- on
+  .Call("L_setDLon", as.logical(on))
   if (on) {
-    .grid.display.list <- vector("list", 100)
-    .grid.display.list.index <- 0
+    .Call("L_setDisplayList", vector("list", 100))
+    .Call("L_setDLindex", as.integer(0))
   }
   else 
-    .grid.display.list <<- NULL
-  .grid.display.list
+    .Call("L_setDisplayList", NULL)
 }
 
 record <- function(x) {
-  if (.grid.display.list.on)
+  if (.Call("L_getDLon"))
     UseMethod("record")
 }
 
 # When there is a pop.viewport, the number of viewports popped
 # gets put on the display list
 record.default <- function(n) {
+  .Call("L_setDLelt", n)
   inc.display.list()
-  .grid.display.list[[.grid.display.list.index]] <<- n
 }
 
 record.grob <- function(grob) {
+  .Call("L_setDLelt", grob)
   inc.display.list()
-  # FIXME:  Should use assign() here ?
-  .grid.display.list[[.grid.display.list.index]] <<- grob
 }
 
 record.viewport <- function(vp) {
+  .Call("L_setDLelt", vp)
   inc.display.list()
-  # FIXME:  Should use assign() here ?
-  .grid.display.list[[.grid.display.list.index]] <<- vp
-}
-
-clear.display.list <- function() {
-  if (.grid.display.list.on) {
-    .grid.display.list <<- vector("list", 100)
-    .grid.display.list.index <<- 0
-  }
 }
 

@@ -41,7 +41,7 @@ draw.details.frame <- function(frame, grob, recording=TRUE) {
 # This ensures that the frame is on the .grid.display.list
 # so that the editing that occurs in grid.pack() will redraw the
 # frame when it forces a draw.all()
-grid.frame <- function(layout=NULL, vp=NULL, gp=gpar(), draw=TRUE) {
+grid.frame <- function(layout=NULL, vp=NULL, gp=gpar(), draw=FALSE) {
   if (!is.null(layout))
     frame.vp <- viewport(layout=layout)
   else
@@ -164,7 +164,7 @@ mod.dims <- function(dim, dims, index, new.index, nindex, force) {
   dims
 }
 
-update.col <- function(grob, added.col) {
+updateCol <- function(grob, added.col) {
   old.col <- grob$col
   # If grob$col is a range ...
   if (length(old.col) == 2) {
@@ -177,7 +177,7 @@ update.col <- function(grob, added.col) {
   grob
 }
 
-update.row <- function(grob, added.row) {
+updateRow <- function(grob, added.row) {
   old.row <- grob$row
   # If grob$row is a range ...
   if (length(old.row) == 2) {
@@ -188,6 +188,29 @@ update.row <- function(grob, added.row) {
     if (added.row <= old.row)
       grob$row <- old.row + 1
   grob
+}
+
+# This guy is just a simpler interface to grid.pack(), with
+# the focus more on just "placing" a grob within the existing
+# layout of a frame, without modifying that layout in any way
+# In this way, it is basically just a more convenient way of
+# locating grobs within a viewport with a layout
+# NOTE that it relies on intimate knowledge of grid.pack
+# to make the minimum impact on the existing layout
+# THEREFORE it is fragile if grid.pack changes
+# In particular, it makes sure that the widths/heights of
+# the layout are untouched by specifying the row and col as
+# a range
+grid.place <- function(frame, grob, grob.name="", draw=TRUE,
+                       row=1, col=1) {
+  if (length(row) == 1)
+    row <- rep(row, 2)
+  if (length(col) == 1)
+    col <- rep(col, 2)
+  grid.pack(frame, grob, grob.name, draw,
+            col=col, row=row,
+            # Just dummy values;  they will be ignored by grid.pack
+            width=unit(1, "null"), height=unit(1, "null"))
 }
 
 # Pack a child grob within a frame grob
@@ -304,15 +327,16 @@ grid.pack <- function(frame, grob, grob.name="", draw=TRUE,
       heights <- mod.dims(height, layout.heights(lay), row, new.row, nrow,
                           force.height)
   }
-  respect <- layout.respect(lay)
-  viewport.layout(frame.vp) <- grid.layout(ncol=ncol, nrow=nrow,
-                                       widths=widths, height=heights)
+  # NOT SURE WHAT THIS WAS DOING HERE
+  # respect <- layout.respect(lay)
+  frame.vp$layout <- grid.layout(ncol=ncol, nrow=nrow,
+                                 widths=widths, height=heights)
   children <- grid.get(frame, "children")
   # Modify the locations (row, col) of existing children in the frame
   if (new.col)
-    children <- lapply(children, update.col, col)
+    children <- lapply(children, updateCol, col)
   if (new.row)
-    children <- lapply(children, update.row, row)
+    children <- lapply(children, updateRow, row)
   if (!is.null(grob)) {
     # Give the new grob a record of its location (row, col) in the frame
     grob$row <- row

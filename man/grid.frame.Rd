@@ -9,7 +9,7 @@
   use \code{grid.pack} to pack objects into the frame.
 }
 \usage{
-grid.frame(layout=NULL, vp=NULL, gp=gpar(), draw=TRUE)
+grid.frame(layout=NULL, vp=NULL, gp=gpar(), draw=FALSE)
 }
 %- maybe also `usage' for other objects documented here.
 \arguments{
@@ -32,7 +32,7 @@ grid.frame(layout=NULL, vp=NULL, gp=gpar(), draw=TRUE)
 
 \examples{
 grid.newpage()
-gf <- grid.frame()
+gf <- grid.frame(draw=TRUE)
 grid.pack(gf, grid.rect(draw=FALSE, gp=gpar(fill="grey")))
 grid.pack(gf, grid.text("hi there", draw=FALSE), side="right")
 }

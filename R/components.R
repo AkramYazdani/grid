@@ -10,7 +10,7 @@ draw.details.collection <- function(collection, grob, recording=TRUE) {
 # have a separate make.collection function with identical argument
 # list (i.e., duplicated entry point).  Not such an issue here,
 # but just gets worse the more complex the graphical object gets.
-grid.collection <- function(..., gp=gpar(), draw=T, vp=NULL) {
+grid.collection <- function(..., gp=gpar(), draw=TRUE, vp=NULL) {
   children <- list(...)
   # Allow for single argument of a list of grobs (rather than
   # multiple grobs as separate arguments)
@@ -51,7 +51,7 @@ draw.details.xaxis <- function(axis, grob, recording=TRUE) {
 
 # NOTE that this can't be for all axes because it needs to
 # call make.XAXIS.ticks and make.XAXIS.labels
-edit.details.xaxis <- function(axis, new.values) {
+editDetails.xaxis <- function(axis, new.values) {
   slot.names <- names(new.values)
   if (match("at", slot.names, nomatch=0)) {
     # NOTE that grid.edit has already set axis$at to the new value
@@ -140,7 +140,7 @@ draw.details.yaxis <- function(axis, grob, recording=TRUE) {
   common.draw.axis(axis)
 }
 
-edit.details.yaxis <- function(axis, new.values) {
+editDetails.yaxis <- function(axis, new.values) {
   slot.names <- names(new.values)
   if (match("at", slot.names, nomatch=0)) {
     if (!is.na(axis$at)) {

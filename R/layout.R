@@ -31,27 +31,48 @@ valid.layout <- function(nrow, ncol, widths, heights, respect) {
 }
 
 layout.torture <- function() {
+  top.vp <- viewport(y=0, height=unit(1, "npc") - unit(1.5, "lines"),
+                     just=c("centre", "bottom"))
+  do.label <- function(label) {
+    grid.rect(y=1, height=unit(1.5, "lines"),
+              just=c("center", "top"))
+    grid.text(label,
+              y=unit(1, "npc") - unit(1, "lines"),
+              gp=gpar(font=2))
+  }
   # 1 = all relative widths and heights
-  lshow.layout(llayout(3,2))
+  grid.show.layout(grid.layout(3,2), vp=top.vp)
+  do.label("All dimensions relative -- no respect")
   # (1) with full respect
-  lshow.layout(llayout(3,2, respect=T))
+  grid.show.layout(grid.layout(3,2, respect=TRUE), vp=top.vp)
+  do.label("All dimensions relative -- full respect")
   # (1) with partial respect
-  lshow.layout(llayout(3,2,respect=matrix(c(1,0,0,0,0,0), 3, 2, T)))
+  grid.show.layout(grid.layout(3,2,respect=matrix(c(1,0,0,0,0,0), 3, 2, TRUE)),
+                   vp=top.vp)
+  do.label("All dimensions relative -- only top-left cell respected")
   # (1) with slightly weirder partial respect
-  lshow.layout(llayout(3,2,respect=matrix(c(1,0,0,0,0,1), 3, 2, T)))
+  grid.show.layout(grid.layout(3,2,respect=matrix(c(1,0,0,0,0,1), 3, 2, TRUE)),
+                   vp=top.vp)
+  do.label("All relative -- top-left, bottom-right respected")
   # 2 = combination of absolute and relative widths and heights
-  lshow.layout(llayout(2, 3,
+  grid.show.layout(grid.layout(2, 3,
                        widths=unit(c(2,4,1), c("null", "cm", "null")),
-                       heights=unit(c(6,4), c("cm", "null"))))
+                       heights=unit(c(6,4), c("cm", "null"))),
+                   vp=top.vp)
+  do.label("Absolute and relative -- no respect")
   # (2) with full respect
-  lshow.layout(llayout(2, 3, 
+  grid.show.layout(grid.layout(2, 3, 
                        widths=unit(c(2,4,1), c("null", "cm", "null")),
-                       heights=unit(c(6,4), c("cm", "null")), respect=T))
+                       heights=unit(c(6,4), c("cm", "null")), respect=TRUE),
+                   vp=top.vp)
+  do.label("Absolute and relative -- full respect")
   # (2) with partial respect
-  lshow.layout(llayout(2, 3, 
+  grid.show.layout(grid.layout(2, 3, 
                        widths=unit(c(2,4,1), c("null", "cm", "null")),
                        heights=unit(c(6,4), c("cm", "null")),
-                       respect=matrix(c(0,0,0,0,0,1), 2, 3, T)))
+                       respect=matrix(c(0,0,0,0,0,1), 2, 3, TRUE)),
+                   vp=top.vp)
+  do.label("Absolute and relative -- bottom-right respected")
 }
 
 ####################

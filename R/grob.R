@@ -127,7 +127,7 @@ grid.edit <- function(grob, ..., redraw=TRUE) {
           }
         }
       # Do any class-specific editing
-      list.struct <- edit.details(list.struct, new.values)
+      list.struct <- editDetails(list.struct, new.values)
       set.value.grob(grob, child.specs, list.struct)
       # FIXME:  This needs to draw ldisplay.list for all devices where
       # grob appears
@@ -137,11 +137,11 @@ grid.edit <- function(grob, ..., redraw=TRUE) {
   }
 }
 
-edit.details <- function(x, new.values) {
-  UseMethod("edit.details")
+editDetails <- function(x, new.values) {
+  UseMethod("editDetails")
 }
 
-edit.details.default <- function(x, new.values) {
+editDetails.default <- function(x, new.values) {
   # Do nothing BUT return object being edited
   x
 }
@@ -183,7 +183,7 @@ grid.draw <- function(x, recording=TRUE) {
 
 draw.all <- function() {
   grid.newpage(recording=FALSE)
-  lapply(.grid.display.list, grid.draw, recording=FALSE)
+  lapply(.Call("L_getDisplayList"), grid.draw, recording=FALSE)
   NULL
 }
 
@@ -204,8 +204,8 @@ draw.details.viewport <- function(vp, vp.again, recording) {
   push.viewport(vp, recording=FALSE)
 }
 
-print.grob <- function(grob) {
-  cl <- class(get.value.grob(grob))
+print.grob <- function(x, ...) {
+  cl <- class(get.value.grob(x))
   print(paste(cl[1:(length(cl)-1)], collapse=" "))
 }
 

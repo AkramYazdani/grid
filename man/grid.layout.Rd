@@ -60,10 +60,7 @@ grid.layout(nrow = 1, ncol = 1,
   \code{\link{layout}}}
 
 \examples{
-# Diagram of a simple layout 
-grid.show.layout(grid.layout(4,2,
-                     heights=unit(rep(1, 4),
-                                  c("lines", "lines", "lines", "null")),
-                     widths=unit(c(1, 1), "inches")))
+# A variety of layouts (some a bit mid-bending ...)
+layout.torture()
 }
 \keyword{ dplot }%-- one or more ...

@@ -41,6 +41,6 @@ grid.get(xa)
 grid.get(xa, "ticks")
 
 temp <- grid.collection(axis=grid.xaxis(draw=FALSE))
-grid.get(temp, "axis", "ticks")
+grid.get(temp, "children", "axis", "ticks")
 }
 \keyword{ dplot }%-- one or more ...

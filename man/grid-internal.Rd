@@ -3,12 +3,14 @@
 \alias{[.unit}
 \alias{[.unit.arithmetic}
 \alias{[.unit.list}
+\alias{.GRID.STATE}
 \alias{.grid.Rpar.names}
 \alias{.grid.display.list}
 \alias{.grid.display.list.index}
 \alias{.grid.display.list.on}
 \alias{.grid.gpar.names}
 \alias{.grid.gpars}
+\alias{.grid.loaded}
 \alias{.grid.saved.Rpars}
 \alias{.grid.saved.gpars}
 \alias{.grid.unit.list}
@@ -17,10 +19,10 @@
 \alias{.unit}
 \alias{.unit.arithmetic}
 \alias{.unit.list}
-\alias{absolute                   }
-\alias{absolute.units            }
-\alias{absolute.units.arithmetic  }
-\alias{absolute.units.list        }
+\alias{absolute}
+\alias{absolute.units}
+\alias{absolute.units.arithmetic}
+\alias{absolute.units.list}
 \alias{as.character.unit}
 \alias{as.character.unit.arithmetic}
 \alias{as.character.unit.list}
@@ -50,11 +52,11 @@
 \alias{draw.details.xaxis}
 \alias{draw.details.yaxis}
 \alias{draw.frame.child}
-\alias{edit.details}
-\alias{edit.details.default}
-\alias{edit.details.frame}
-\alias{edit.details.xaxis}
-\alias{edit.details.yaxis}
+\alias{editDetails}
+\alias{editDetails.default}
+\alias{editDetails.frame}
+\alias{editDetails.xaxis}
+\alias{editDetails.yaxis}
 \alias{get.gpar}
 \alias{get.value}
 \alias{get.value.default}
@@ -64,25 +66,25 @@
 \alias{grid.legend}
 \alias{grid.multipanel}
 \alias{grid.panel}
-\alias{grid.plot.and.legend}
 \alias{grid.prop.list}
 \alias{grid.strip}
+\alias{grid.top.level.vp}
 \alias{grid.width}
 \alias{height}
 \alias{height.default}
-\alias{height.details.default     }
-\alias{height.details.frame       }
-\alias{height.details.rect        }
-\alias{height.details.text        }
-\alias{height.details.viewport    }
+\alias{height.details.default}
+\alias{height.details.frame}
+\alias{height.details.rect}
+\alias{height.details.text}
+\alias{height.details.viewport}
 \alias{height.frame}
 \alias{height.lines}
-\alias{height.post                }
-\alias{height.post.details        }
+\alias{height.post}
+\alias{height.post.details}
 \alias{height.post.details.default}
-\alias{height.pre                 }
-\alias{height.pre.details         }
-\alias{height.pre.details.default }
+\alias{height.pre}
+\alias{height.pre.details}
+\alias{height.pre.details.default}
 \alias{height.text}
 \alias{inc.display.list}
 \alias{is.even}
@@ -141,37 +143,42 @@
 \alias{swap.origin.vertical}
 \alias{unit.arithmetic}
 \alias{unit.arithmetic.length}
+\alias{unit.arithmetic.rep}
 \alias{unit.list}
 \alias{unit.list.c}
+\alias{unit.list.from.list}
 \alias{unit.list.length}
+\alias{unit.list.rep}
 \alias{unset.gpar}
 \alias{unstack.viewports}
-\alias{update.col}
-\alias{update.row}
+\alias{updateCol}
+\alias{updateRow}
 \alias{valid.data}
 \alias{valid.just}
 \alias{valid.layout}
 \alias{valid.origin}
+\alias{valid.pch}
 \alias{valid.unit}
 \alias{valid.units}
 \alias{valid.viewport}
+\alias{validGP}
 \alias{viewport.layout}
 \alias{viewport.layout<-}
 \alias{width}
 \alias{width.default}
-\alias{width.details.default      }
-\alias{width.details.frame        }
-\alias{width.details.rect         }
-\alias{width.details.text         }
-\alias{width.details.viewport     }
+\alias{width.details.default}
+\alias{width.details.frame}
+\alias{width.details.rect}
+\alias{width.details.text}
+\alias{width.details.viewport}
 \alias{width.frame}
 \alias{width.lines}
-\alias{width.post                 }
-\alias{width.post.details         }
-\alias{width.post.details.default }
-\alias{width.pre                  }
-\alias{width.pre.details          }
-\alias{width.pre.details.default  }
+\alias{width.post}
+\alias{width.post.details}
+\alias{width.post.details.default}
+\alias{width.pre}
+\alias{width.pre.details}
+\alias{width.pre.details.default}
 \alias{width.text}
 \title{Internal Grid Functions}
 \description{

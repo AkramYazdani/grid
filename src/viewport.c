@@ -1,5 +1,7 @@
 #include "grid.h"
 
+extern int gridRegisterIndex;
+
 /* Some access methods for viewports */
 SEXP viewportX(SEXP vp) {
     return getListElement(vp, "x");
@@ -17,12 +19,24 @@ SEXP viewportHeight(SEXP vp) {
     return getListElement(vp, "height");
 }
 
+int viewportFont(SEXP vp) {
+    return INTEGER(getListElement(vp, "cur.font"))[0];
+}
+
 double viewportFontSize(SEXP vp) {
     return numeric(getListElement(vp, "cur.fontsize"), 0);
 }
 
 double viewportLineHeight(SEXP vp) {
     return numeric(getListElement(vp, "cur.lineheight"), 0);
+}
+
+Rboolean viewportClip(SEXP vp) {
+    return LOGICAL(getListElement(vp, "clip"))[0];
+}
+
+SEXP viewportCurClip(SEXP vp) {
+    return getListElement(vp, "cur.clip");
 }
 
 double viewportXScaleMin(SEXP vp) {
@@ -110,6 +124,7 @@ void fillViewportLocationFromViewport(SEXP vp, LViewportLocation *vpl)
 void fillViewportContextFromViewport(SEXP vp, 
 				     LViewportContext *vpc)
 {
+    vpc->font = viewportFont(vp);
     vpc->fontsize = viewportFontSize(vp);
     vpc->lineheight = viewportLineHeight(vp);
     vpc->xscalemin = viewportXScaleMin(vp);
@@ -123,6 +138,7 @@ void fillViewportContextFromViewport(SEXP vp,
 
 void copyViewportContext(LViewportContext vpc1, LViewportContext *vpc2)
 {
+    vpc2->font = vpc1.font;
     vpc2->fontsize = vpc1.fontsize;
     vpc2->lineheight = vpc1.lineheight;
     vpc2->xscalemin = vpc1.xscalemin;
@@ -144,7 +160,7 @@ void copyViewportContext(LViewportContext vpc1, LViewportContext *vpc2)
  * everything from scratch.
  */
 void calcViewportTransform(SEXP vp, SEXP parent, Rboolean incremental,
-			   DevDesc *dd)
+			   GEDevDesc *dd)
 {
     int i, j;
     double vpWidthCM, vpHeightCM, rotationAngle;
@@ -228,11 +244,13 @@ void calcViewportTransform(SEXP vp, SEXP parent, Rboolean incremental,
     /* First, convert the location of the viewport into CM
      */
     xINCHES = transformXtoINCHES(vpl.x, 0, parentContext,
+				 viewportFont(vp),
 				 viewportFontSize(vp),
 				 viewportLineHeight(vp),
 				 parentWidthCM, parentHeightCM, 
 				 dd);
     yINCHES = transformYtoINCHES(vpl.y, 0, parentContext,
+				 viewportFont(vp),
 				 viewportFontSize(vp),
 				 viewportLineHeight(vp),
 				 parentWidthCM, parentHeightCM, 
@@ -241,11 +259,13 @@ void calcViewportTransform(SEXP vp, SEXP parent, Rboolean incremental,
      * so that any viewports within this one can do transformations
      */
     vpWidthCM = transformWidthtoINCHES(vpl.width, 0, parentContext,
+				       viewportFont(vp),
 				       viewportFontSize(vp),
 				       viewportLineHeight(vp),
 				       parentWidthCM, parentHeightCM,
 				       dd)*2.54;
     vpHeightCM = transformHeighttoINCHES(vpl.height, 0, parentContext,
+					 viewportFont(vp),
 					 viewportFontSize(vp),
 					 viewportLineHeight(vp),
 					 parentWidthCM, 
@@ -305,4 +325,26 @@ void calcViewportTransform(SEXP vp, SEXP parent, Rboolean incremental,
     UNPROTECT(4);
 }
 
+void initVP(GEDevDesc *dd)
+{
+    SEXP vpfnname, vpfn, vp;
+    SEXP font, lh, fs;
+    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
+    SEXP gsd = (SEXP) dd->gesd[gridRegisterIndex]->systemSpecific;
+    PROTECT(vpfnname = findFun(install("grid.top.level.vp"), R_GlobalEnv));
+    PROTECT(vpfn = lang1(vpfnname));
+    PROTECT(vp = eval(vpfn, R_GlobalEnv));
+    PROTECT(font = allocVector(INTSXP, 1));
+    INTEGER(font)[0] = gpFont(currentgp);
+    setListElement(vp, "cur.font", font);
+    PROTECT(lh = allocVector(REALSXP, 1));
+    REAL(lh)[0] = gpLineHeight(currentgp);
+    setListElement(vp, "cur.lineheight", lh);
+    PROTECT(fs = allocVector(REALSXP, 1));
+    REAL(fs)[0] = gpFontSize(currentgp);
+    setListElement(vp, "cur.fontsize", fs);
+    vp = doSetViewport(vp, R_NilValue, dd);
+    SET_VECTOR_ELT(gsd, GSS_VP, vp);
+    UNPROTECT(6);
+}
 

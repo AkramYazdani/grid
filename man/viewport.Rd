@@ -11,7 +11,7 @@
 viewport(x = unit(0.5, "npc"), y = unit(0.5, "npc"),
          width = unit(1, "npc"), height = unit(1, "npc"),
          default.units = "npc", just = "centre", 
-         origin = "bottom.left", gp=gpar(), 
+         origin = "bottom.left", gp = gpar(), clip = FALSE,
          xscale = c(0, 1), yscale = c(0, 1),
          angle = 0,
          layout = NULL, layout.pos.row = NULL, layout.pos.col = NULL)
@@ -43,6 +43,8 @@ viewport(x = unit(0.5, "npc"), y = unit(0.5, "npc"),
   \item{gp}{An object of class \code{gpar}, typically the output
     from a call to the function \code{gpar}.  This is basically
     a list of graphical parameter settings.}
+  \item{clip}{A logical flag indicating whether to clip to the
+    extent of the viewport.}
   \item{xscale}{A numeric vector of length two indicating the minimum and
     maximum on the x-scale.}
   \item{yscale}{A numeric vector of length two indicating the minimum
@@ -79,6 +81,16 @@ viewport(x = unit(0.5, "npc"), y = unit(0.5, "npc"),
   \code{layout.pos.row = c(1, 3)} and \code{layout.pos.col = c(2, 4)}
   means occupy cells in the intersection of rows 1, 2, and 3, and
   columns, 2, 3, and 4.
+
+    Clipping obeys only the most recent viewport clip setting.
+    For example, if you clip to viewport1, then clip to viewport2,
+    the clipping region is determined wholly by viewport2, the
+    size and shape of viewport1 is irrelevant (until viewport2
+    is popped of course).
+
+    If a viewport is rotated (because of its own \code{angle} setting
+    or because it is within another viewport which is rotated) then
+    the \code{clip} flag is ignored.  
 }
 \value{
   An R object of class \code{viewport}.
@@ -95,5 +107,28 @@ viewport(x = unit(0.5, "npc"), y = unit(0.5, "npc"),
 # Diagram of a sample viewport
 grid.show.viewport(viewport(x=0.6, y=0.6,
                    w=unit(1, "inches"), h=unit(1, "inches")))
+# Demonstrate viewport clipping
+clip.demo <- function(i, j, clip1, clip2, title) {
+  push.viewport(viewport(layout.pos.col=i,
+                         layout.pos.row=j))
+  push.viewport(viewport(width=0.6, height=0.6, clip=clip1))
+  grid.rect(gp=gpar(fill="white"))
+  grid.circle(r=0.55, gp=gpar(col="red", fill="pink"))
+  pop.viewport()
+  push.viewport(viewport(width=0.6, height=0.6, clip=clip2))
+  grid.polygon(x=c(0.5, 1.1, 0.6, 1.1, 0.5, -0.1, 0.4, -0.1),
+               y=c(0.6, 1.1, 0.5, -0.1, 0.4, -0.1, 0.5, 1.1),
+               gp=gpar(col="blue", fill="light blue"))
+  pop.viewport(2)
+}
+
+grid.newpage()
+grid.rect(gp=gpar(fill="grey"))
+push.viewport(viewport(layout=grid.layout(2, 2)))
+clip.demo(1, 1, FALSE, FALSE)
+clip.demo(1, 2, TRUE, FALSE)
+clip.demo(2, 1, FALSE, TRUE)
+clip.demo(2, 2, TRUE, TRUE)
+pop.viewport()
 }
 \keyword{dplot}%-- one or more ...

@@ -29,6 +29,18 @@ void setListElement(SEXP list, char *str, SEXP value)
     }
 }
     
+SEXP getSymbolValue(char *symbolName)
+{
+    SEXP t;
+    t = findVar(install(symbolName), R_GlobalEnv);
+    return t;
+}
+
+void setSymbolValue(char *symbolName, SEXP value)
+{
+    setVar(install(symbolName), value, R_GlobalEnv);
+}
+
 /* The lattice R code checks values to make sure that they are numeric
  * BUT we do not know whether the values are integer or real
  * SO we have to be careful when extracting numeric values.
@@ -158,13 +170,17 @@ int intersect(LRect r1, LRect r2)
 /* Calculate the bounding rectangle for a string.
  * x and y assumed to be in INCHES.
  */
-void textRect(double x, double y, char *string, double xadj, double yadj,
-	      double rot, DevDesc *dd, LRect *r) 
+void textRect(double x, double y, char *string, 
+	      int font, double cex, double ps,
+	      double xadj, double yadj,
+	      double rot, GEDevDesc *dd, LRect *r) 
 {
     /* NOTE that we must work in inches for the angles to be correct
      */
-    double w = GStrWidth(string, INCHES, dd);
-    double h = GStrHeight(string, INCHES, dd);
+    double w = fromDeviceWidth(GEStrWidth(string, font, cex, ps, dd),
+			       GE_INCHES, dd);
+    double h = fromDeviceHeight(GEStrHeight(string, font, cex, ps, dd),
+				GE_INCHES, dd);
     double x1, x2, x3, x4, y1, y2, y3, y4;
     double rotrad = DEG2RAD*rot;
     double sinrotrad = sin(rotrad);

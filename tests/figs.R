@@ -1,12 +1,12 @@
 library(grid)
 postscript("figs.ps")
-grid.start()
 grid.newpage()
 grid.rect(x=0.5, y=0.5, h=1, w=1, 
           just="centre", gp=gpar(border=NULL, fill="#FFBF00"))
 grid.rect(x=0.33, y=0, h=1, w=0.2, 
           just=c("left", "bottom"), gp=gpar(border=NULL, fill="#FF8000"))
 grid.text(x=0.5, y=0.5, "A Label")
+grid.newpage()
 grid.newpage()
 vp <- viewport(x=0.5, y=1, w=1, h=unit(1, "lines"),
                     just=c("centre", "top"))

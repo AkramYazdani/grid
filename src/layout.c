@@ -51,7 +51,7 @@ void allocateKnownWidths(SEXP layout,
 			 int *relativeWidths, 
 			 double parentWidthCM, double parentHeightCM,
 			 LViewportContext parentContext,
-			 DevDesc *dd,
+			 GEDevDesc *dd,
 			 double *npcWidths, double *widthLeftCM) 
 {
     int i;
@@ -59,6 +59,7 @@ void allocateKnownWidths(SEXP layout,
     for (i=0; i<layoutNCol(layout); i++) 
 	if (!relativeWidths[i]) {
 	    npcWidths[i] = transformWidth(widths, i, parentContext,
+					  parentContext.font,
 					  parentContext.fontsize,
 					  parentContext.lineheight,
 					  parentWidthCM, parentHeightCM, dd);
@@ -70,7 +71,7 @@ void allocateKnownHeights(SEXP layout,
 			  int *relativeHeights,
 			  double parentWidthCM, double parentHeightCM,
 			  LViewportContext parentContext,
-			  DevDesc *dd,
+			  GEDevDesc *dd,
 			  double *npcHeights, double *heightLeftCM) 
 {
     int i;
@@ -78,6 +79,7 @@ void allocateKnownHeights(SEXP layout,
     for (i=0; i<layoutNRow(layout); i++) 
 	if (!relativeHeights[i]) {
 	    npcHeights[i] = transformHeight(heights, i, parentContext,
+					    parentContext.font,
 					    parentContext.fontsize,
 					    parentContext.lineheight,
 					    parentWidthCM, parentHeightCM, dd);
@@ -126,6 +128,7 @@ double totalWidth(SEXP layout, int *relativeWidths,
     for (i=0; i<layoutNCol(layout); i++) 
 	if (relativeWidths[i])
 	    totalWidth += transformWidth(widths, i, parentContext, 
+					 parentContext.font,
 					 parentContext.fontsize,
 					 parentContext.lineheight,
 					 0, 0, NULL);
@@ -144,6 +147,7 @@ double totalHeight(SEXP layout, int *relativeHeights,
     for (i=0; i<layoutNRow(layout); i++) 
 	if (relativeHeights[i])
 	    totalHeight += transformHeight(heights, i, parentContext, 
+					   parentContext.font,
 					   parentContext.fontsize,
 					   parentContext.lineheight,
 					   0, 0, NULL);
@@ -156,7 +160,7 @@ void allocateRespected(SEXP layout,
 		       double hmult, double vmult,
 		       double *reducedWidthCM, double *reducedHeightCM,
 		       LViewportContext parentContext,
-		       DevDesc *dd,
+		       GEDevDesc *dd,
 		       double *npcWidths, double *npcHeights)
 {
     int i;
@@ -191,6 +195,7 @@ void allocateRespected(SEXP layout,
 		    PROTECT(width = unit(unitValue(widths, i)/denom*mult, 
 					 L_CM));
 		    npcWidths[i] = transformWidth(width, 0, parentContext,
+						  parentContext.font,
 						  parentContext.fontsize,
 						  parentContext.lineheight,
 						  tempWidthCM, 
@@ -209,6 +214,7 @@ void allocateRespected(SEXP layout,
 		    PROTECT(height = unit(unitValue(heights, i)/denom*mult,
 					  L_CM));
 		    npcHeights[i] = transformHeight(height, 0, parentContext,
+						    parentContext.font,
 						    parentContext.fontsize,
 						    parentContext.lineheight,
 						    tempWidthCM, 
@@ -235,6 +241,7 @@ double totalUnrespectedWidth(SEXP layout, int *relativeWidths,
 	if (relativeWidths[i])
 	    if (!colRespected(i, layout))
 		totalWidth += transformWidth(widths, i, parentContext, 
+					     parentContext.font,
 					     parentContext.fontsize,
 					     parentContext.lineheight,
 					     0, 0, NULL);
@@ -254,6 +261,7 @@ double totalUnrespectedHeight(SEXP layout, int *relativeHeights,
 	if (relativeHeights[i])
 	    if (!rowRespected(i, layout))
 		totalHeight += transformHeight(heights, i, parentContext, 
+					       parentContext.font,
 					       parentContext.fontsize,
 					       parentContext.lineheight,
 					       0, 0, NULL);
@@ -276,6 +284,7 @@ void allocateRemainingWidth(SEXP layout, int *relativeWidths,
 	    if (!colRespected(i, layout))
 		npcWidths[i] = multiplier*
 		    transformWidth(widths, i, parentContext, 
+				   parentContext.font,
 				   parentContext.fontsize,
 				   parentContext.lineheight,
 				   0, 0, NULL)/
@@ -299,6 +308,7 @@ void allocateRemainingHeight(SEXP layout, int *relativeHeights,
 	    if (!rowRespected(i, layout))
 		npcHeights[i] = multiplier*
 		    transformHeight(heights, i, parentContext, 
+				    parentContext.font,
 				    parentContext.fontsize,
 				    parentContext.lineheight,
 				    0, 0, NULL)/
@@ -334,7 +344,7 @@ void calcViewportLayout(SEXP viewport,
 			double parentWidthCM,
 			double parentHeightCM,
 			LViewportContext parentContext,
-			DevDesc *dd)
+			GEDevDesc *dd)
 {
     int i;
     SEXP currentWidths, currentHeights;

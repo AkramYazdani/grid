@@ -11,9 +11,10 @@ grid.strip <- function(label="whatever", range.full=c(0, 1),
   if (!is.null(vp))
     push.viewport(vp)
   grid.rect(gp=gpar(col=NULL, fill=fill))
-  grid.rect(range.thumb[1]/diff.full, 0, diff.thumb/diff.full, 1,
-        just=c("left", "bottom"),
-        gp=gpar(col=NULL, fill=thumb))
+  grid.rect((range.thumb[1] - range.full[1])/diff.full, 0,
+            diff.thumb/diff.full, 1,
+            just=c("left", "bottom"),
+            gp=gpar(col=NULL, fill=thumb))
   grid.text(as.character(label))
   if (!is.null(vp))
     pop.viewport()
@@ -256,6 +257,44 @@ grid.legend <- function(pch, labels, frame=TRUE,
   gf
 }
 
+# An experimental new.grid.legend <-
+function(pch, labels, frame=TRUE,
+                        hgap=unit(0.5, "lines"), vgap=unit(0.5, "lines"),
+                        default.units="lines",
+                        gp=gpar(), draw=TRUE,
+                        vp=NULL) {
+  # Type checking on arguments
+  labels <- as.character(labels)
+  nkeys <- length(labels)
+  if (length(pch) != nkeys)
+    stop("pch and labels not the same length")
+  if (!is.unit(hgap))
+    hgap <- unit(hgap, default.units)
+  if (length(hgap) != 1)
+    stop("hgap must be single unit")
+  if (!is.unit(vgap))
+    vgap <- unit(vgap, default.units)
+  if (length(vgap) != 1)
+    stop("vgap must be single unit")
+  legend.layout <-
+    grid.layout(nkeys, 2,
+                widths=unit.c(unit(2, "lines"),
+                  max(unit(rep(1, nkeys), "strwidth", as.list(labels)))),
+                heights=unit.pmax(unit(2, "lines"),
+                  unit(rep(1, nkeys), "strheight", as.list(labels))))
+  gf <- grid.frame(layout=legend.layout, vp=vp, gp=gp, draw=FALSE)
+  for (i in 1:nkeys) {
+    grid.place(gf, grid.points(.5, .5, pch=pch[i], draw=FALSE),
+              col=1, row=i, draw=FALSE)
+    grid.place(gf, grid.text(labels[i], x=0, y=.5, just=c("left", "centre"),
+                             draw=FALSE),
+               col=2, row=i, draw=FALSE)
+  }
+  if (draw) 
+    grid.draw(gf)
+  gf
+}
+
 # Just a wrapper for a sample series of grid commands
 grid.plot.and.legend <- function() {
   grid.newpage()
@@ -266,15 +305,16 @@ grid.plot.and.legend <- function() {
   y2 <- runif(10)
   pch <- 1:3
   labels <- c("Girls", "Boys", "Other")
-  lf <- grid.frame()
-  plot <- grid.collection(grid.rect(draw=F),
-                      grid.points(x, y1, pch=1, draw=F),
-                      grid.points(x, y2, pch=2, draw=F),
-                      grid.xaxis(draw=F),
-                      grid.yaxis(draw=F),
-                      draw=F)
+  lf <- grid.frame(draw=TRUE)
+  plot <- grid.collection(grid.rect(draw=FALSE),
+                      grid.points(x, y1, pch=1, draw=FALSE),
+                      grid.points(x, y2, pch=2, draw=FALSE),
+                      grid.xaxis(draw=FALSE),
+                      grid.yaxis(draw=FALSE),
+                      draw=FALSE)
   grid.pack(lf, plot)
-  grid.pack(lf, llegend(pch, labels, draw=F), height=unit(1,"null"), side="right")
+  grid.pack(lf, grid.legend(pch, labels, draw=FALSE),
+            height=unit(1,"null"), side="right")
   grid.draw(lf)
 }
 

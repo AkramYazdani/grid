@@ -36,6 +36,6 @@ grid.newpage()
 lc <- grid.collection(l1=grid.lines(draw=FALSE),
                       l2=grid.lines(c(.5, .5), draw=FALSE))
 grid.edit(lc, gp=gpar(col="blue"))
-grid.edit(lc, "l2", gp=gpar(col="red"))
+grid.edit(lc, "children", "l2", gp=gpar(col="red"))
 }
 \keyword{ dplot }%-- one or more ...

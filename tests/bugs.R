@@ -2,7 +2,6 @@
 library(grid)
 
 postscript("bugs.ps")
-grid.start()
 gf1 <- grid.frame(gp=gpar(fontsize=20), draw=F)
 grid.pack(gf1, grid.text("howdy", draw=F), draw=F)
 grid.pack(gf1, grid.rect(draw=F), col=1, row=1, draw=F)

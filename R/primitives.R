@@ -2,9 +2,7 @@
 # move-to and line-to primitives
 ######################################
 draw.details.move.to <- function(l, grob, recording=TRUE) {
-  .Call.graphics("L_moveTo", l$x, l$y,
-                 get.gpar("fontsize"), get.gpar("lineheight"),
-                 .grid.viewport)
+  .Call.graphics("L_moveTo", l$x, l$y)
 }
 
 grid.move.to <- function(x=0, y=0,
@@ -21,9 +19,7 @@ grid.move.to <- function(x=0, y=0,
 }
 
 draw.details.line.to <- function(l, grob, recording=TRUE) {
-  .Call.graphics("L_lineTo", l$x, l$y,
-                 get.gpar("fontsize"), get.gpar("lineheight"),
-                 .grid.viewport)
+  .Call.graphics("L_lineTo", l$x, l$y)
 }
 
 grid.line.to <- function(x=1, y=1,
@@ -43,9 +39,7 @@ grid.line.to <- function(x=1, y=1,
 # LINES primitive
 ######################################
 draw.details.lines <- function(l, grob, recording=TRUE) {
-  .Call.graphics("L_lines", l$x, l$y,
-                 get.gpar("fontsize"), get.gpar("lineheight"),
-                 .grid.viewport)
+  .Call.graphics("L_lines", l$x, l$y)
 }
 
 # Specify "units.per.obs=TRUE" to give a unit or units per (x, y) pair
@@ -67,9 +61,7 @@ grid.lines <- function(x=unit(c(0, 1), "npc", units.per.obs),
 # SEGMENTS primitive
 ######################################
 draw.details.segments <- function(s, grob, recording=TRUE) {
-  .Call.graphics("L_segments", s$x0, s$y0, s$x1, s$y1,
-                 get.gpar("fontsize"), get.gpar("lineheight"),
-                 .grid.viewport)
+  .Call.graphics("L_segments", s$x0, s$y0, s$x1, s$y1)
 }
 
 # Specify "units.per.obs=TRUE" to give a unit or units per (x, y) pair
@@ -100,10 +92,7 @@ draw.details.polygon <- function(p, grob, recording=TRUE) {
   # I set the colours using par and never pass them down.  This is
   # inconsistent !  BUT due to inconsistency in graphics.c so this
   # is a FIXGRAPHICS rather than a FIXME :)
-  .Call.graphics("L_polygon", p$x, p$y, 
-                 get.gpar("col"), get.gpar("fill"),
-                 get.gpar("fontsize"), get.gpar("lineheight"),
-                 .grid.viewport)
+  .Call.graphics("L_polygon", p$x, p$y)
 }
 
 grid.polygon <- function(x=c(0, 0.5, 1, 0.5), y=c(0.5, 1, 0.5, 0),
@@ -127,10 +116,7 @@ draw.details.circle <- function(c, grob, recording=TRUE) {
   # I set the colours using par and never pass them down.  This is
   # inconsistent !  BUT due to inconsistency in graphics.c so this
   # is a FIXGRAPHICS rather than a FIXME :)
-  .Call.graphics("L_circle", c$x, c$y, c$r,
-                 get.gpar("col"), get.gpar("fill"),
-                 get.gpar("fontsize"), get.gpar("lineheight"),
-                 .grid.viewport)
+  .Call.graphics("L_circle", c$x, c$y, c$r)
 }
 
 grid.circle <- function(x=0.5, y=0.5, r=0.5,
@@ -156,10 +142,7 @@ draw.details.rect <- function(r, grob, recording=TRUE) {
   # inconsistent !  BUT due to inconsistency in graphics.c so this
   # is a FIXGRAPHICS rather than a FIXME :)
   .Call.graphics("L_rect", r$x, r$y, r$width, r$height,
-                 valid.just(r$just, 2),
-                 get.gpar("col"), get.gpar("fill"),
-                 get.gpar("fontsize"), get.gpar("lineheight"),
-                 .grid.viewport)
+                 valid.just(r$just, 2))
 }
 
 width.details.rect <- function(r) {
@@ -193,17 +176,15 @@ grid.rect <- function(x=unit(0.5, "npc"), y=unit(0.5, "npc"),
 draw.details.text <- function(txt, grob, recording=TRUE) {
   # FIXME:  Need type checking for "rot" and "check.overlap"
   .Call.graphics("L_text", txt$label, txt$x, txt$y, 
-                 valid.just(txt$just, 2), txt$rot, txt$check.overlap,
-                 get.gpar("fontsize"), get.gpar("lineheight"),
-                 .grid.viewport)
+                 valid.just(txt$just, 2), txt$rot, txt$check.overlap)
 }
 
 width.details.text <- function(txt) {
-  unit(1, "strwidth", data=txt$label)
+  unit(1, "mystrwidth", data=txt$label)
 }
 
 height.details.text <- function(txt) {
-  unit(1, "strheight", data=txt$label)
+  unit(1, "mystrheight", data=txt$label)
 }
 
 grid.text <- function(label, x=unit(0.5, "npc"), y=unit(0.5, "npc"),
@@ -224,10 +205,13 @@ grid.text <- function(label, x=unit(0.5, "npc"), y=unit(0.5, "npc"),
 # POINTS primitive
 ######################################
 draw.details.points <- function(p, grob, recording=TRUE) {
-  .Call.graphics("L_points", p$x, p$y, p$pch, p$size,
-                 get.gpar("col"), get.gpar("fill"), 
-                 get.gpar("fontsize"), get.gpar("lineheight"),
-                 .grid.viewport)
+  .Call.graphics("L_points", p$x, p$y, p$pch, p$size)
+}
+
+valid.pch <- function(pch) {
+  if (!is.character(pch))
+    pch <- as.integer(pch)
+  pch
 }
 
 grid.points <- function(x=runif(10),
@@ -241,7 +225,7 @@ grid.points <- function(x=runif(10),
     y <- unit(y, default.units)
   if (length(x) != length(y))
     stop("x and y must be unit objects and have the same length")
-  p <- list(x=x, y=y, pch=pch, size=size, gp=gp, vp=vp)
+  p <- list(x=x, y=y, pch=valid.pch(pch), size=size, gp=gp, vp=vp)
   cl <- "points"
   grid.grob(p, cl, draw)
 }

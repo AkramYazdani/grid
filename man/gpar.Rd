@@ -22,7 +22,18 @@ gpar(...)
   settings until the graphical object has finished drawing, or until the
   viewport is popped off the viewport stack, or until some other
   viewport or graphical object is pushed or begins drawing.
+
+  Valid parameter names are:
+  \tabular{ll}{
+    col \tab Colour for lines and borders. \cr
+    fill \tab Colour for filling rectangles, polygons, ... \cr
+    lty \tab Line type \cr
+    lwd \tab Line width \cr
+    fontsize \tab The size of text (in points) \cr
+    lineheight \tab The height of a line as a multiple of fontsize \cr
+    font \tab Font face \cr
   }
+}
 \value{
   An object of class \code{"gpar"}.
 }
@@ -33,9 +44,9 @@ gpar(col="blue", lty="solid", lwd=3, fontsize=16)
 grid.newpage()
 vp <- viewport(w=.8, h=.8, gp=gpar(col="blue"))
 grid.collection(grid.rect(gp=gpar(col="red"), draw=F),
-                grid.text("The rect is its own colour\nbut this text is the colour\nset by the collection", draw=F),
+                grid.text("The rect is its own colour (red)\nbut this text is the colour\nset by the collection (green)", draw=F),
                 gp=gpar(col="green"), vp=vp)
-grid.text("This text is the colour set by the viewport",
+grid.text("This text is the colour set by the viewport (blue)",
           y=1, just=c("center", "bottom"), gp=gpar(fontsize=20), vp=vp)
 }
 \keyword{ dplot }%-- one or more ...
