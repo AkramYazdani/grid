@@ -25,7 +25,7 @@ grid.frame(layout=NULL, vp=NULL, gp=gpar(), draw=FALSE)
   into the frame.  Possibly useful for debugging.}
 }
 \value{
-  An object of class \code{frame}.
+  An object of class \code{"grob"}.
 }
 \author{ Paul Murrell }
 \seealso{ \code{\link{grid.pack}} }

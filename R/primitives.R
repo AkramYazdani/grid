@@ -142,7 +142,7 @@ draw.details.rect <- function(r, grob, recording=TRUE) {
   # inconsistent !  BUT due to inconsistency in graphics.c so this
   # is a FIXGRAPHICS rather than a FIXME :)
   grid.Call.graphics("L_rect", r$x, r$y, r$width, r$height,
-                 valid.just(r$just, 2))
+                 valid.just(r$just))
 }
 
 width.details.rect <- function(r) {
@@ -176,7 +176,7 @@ grid.rect <- function(x=unit(0.5, "npc"), y=unit(0.5, "npc"),
 draw.details.text <- function(txt, grob, recording=TRUE) {
   # FIXME:  Need type checking for "rot" and "check.overlap"
   grid.Call.graphics("L_text", txt$label, txt$x, txt$y, 
-                 valid.just(txt$just, 2), txt$rot, txt$check.overlap)
+                 valid.just(txt$just), txt$rot, txt$check.overlap)
 }
 
 width.details.text <- function(txt) {
@@ -194,7 +194,7 @@ grid.text <- function(label, x=unit(0.5, "npc"), y=unit(0.5, "npc"),
     x <- unit(x, default.units)
   if (!is.unit(y))
     y <- unit(y, default.units)
-  txt <- list(label=as.character(label), x=x, y=y, gp=gp,
+  txt <- list(label=label, x=x, y=y, gp=gp,
               just=just, rot=rot, check.overlap=check.overlap,
               vp=vp)
   cl <- "text"
@@ -209,7 +209,9 @@ draw.details.points <- function(p, grob, recording=TRUE) {
 }
 
 valid.pch <- function(pch) {
-  if (!is.character(pch))
+  if (is.null(pch))
+    pch <- as.integer(1)
+  else if (!is.character(pch))
     pch <- as.integer(pch)
   pch
 }

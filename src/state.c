@@ -212,9 +212,9 @@ SEXP gridCallback(GEevent task, GEDevDesc *dd, SEXP data) {
 
 	    */
 	    if (isNull(fillsxp))
-		GENewPage(NA_INTEGER, gpGamma(currentgp), dd);
+		GENewPage(NA_INTEGER, gpGamma(currentgp, 0), dd);
 	    else
-		GENewPage(RGBpar(fillsxp, 0), gpGamma(currentgp), dd);
+		GENewPage(RGBpar(fillsxp, 0), gpGamma(currentgp, 0), dd);
 	    initGPar(dd);
 	    initVP(dd);
 	}

@@ -220,6 +220,7 @@ SEXP doSetViewport(SEXP vp, SEXP hasParent, GEDevDesc *dd)
 	    }
 	    getViewportContext(vp, &vpc);
 	    transformLocn(x1, y1, 0, vpc,  
+			  viewportFontFamily(vp), 
 			  viewportFont(vp),
 			  viewportFontSize(vp),
 			  viewportLineHeight(vp),
@@ -228,6 +229,7 @@ SEXP doSetViewport(SEXP vp, SEXP hasParent, GEDevDesc *dd)
 			  transform,
 			  &xx1, &yy1);
 	    transformLocn(x2, y2, 0, vpc,  
+			  viewportFontFamily(vp), 
 			  viewportFont(vp),
 			  viewportFontSize(vp),
 			  viewportLineHeight(vp),
@@ -243,14 +245,6 @@ SEXP doSetViewport(SEXP vp, SEXP hasParent, GEDevDesc *dd)
 	    xx2 = toDeviceX(xx2, GE_INCHES, dd);
 	    yy2 = toDeviceY(yy2, GE_INCHES, dd);
 	    GESetClip(xx1, yy1, xx2, yy2, dd);
-	    /* This is a VERY short term fix to avoid mucking
-	     * with the core graphics during feature freeze
-	     * It should be removed post R 1.4 release
-	     */
-	    dd->dev->clipLeft = fmin2(xx1, xx2);
-	    dd->dev->clipRight = fmax2(xx1, xx2);
-	    dd->dev->clipTop = fmax2(yy1, yy2);
-	    dd->dev->clipBottom = fmin2(yy1, yy2); 
 	}
     } else {
 	/* If we haven't set the clipping region for this viewport
@@ -438,9 +432,9 @@ SEXP L_newpage()
 	SEXP currentgp = gridStateElement(dd, GSS_GPAR);
 	SEXP fill = gpFillSXP(currentgp);
 	if (isNull(fill))
-	    GENewPage(NA_INTEGER, gpGamma(currentgp), dd);
+	    GENewPage(NA_INTEGER, gpGamma(currentgp, 0), dd);
 	else
-	    GENewPage(RGBpar(fill, 0), gpGamma(currentgp), dd);
+	    GENewPage(RGBpar(fill, 0), gpGamma(currentgp, 0), dd);
     }
     return R_NilValue;
 }
@@ -522,36 +516,40 @@ SEXP L_convertToNative(SEXP x, SEXP what)
     case 0:
 	for (i=0; i<nx; i++)  
 	    REAL(result)[i] = transformXtoNative(x, i, vpc, 
-						 gpFont(currentgp),
-						 gpFontSize(currentgp), 
-						 gpLineHeight(currentgp),
+						 gpFontFamily(currentgp, i),
+						 gpFont(currentgp, i),
+						 gpFontSize(currentgp, i), 
+						 gpLineHeight(currentgp, i),
 						 vpWidthCM, vpHeightCM,
 						 dd);
 	break;
     case 1:	
 	for (i=0; i<nx; i++)  
 	    REAL(result)[i] = transformYtoNative(x, i, vpc, 
-						 gpFont(currentgp),
-						 gpFontSize(currentgp), 
-						 gpLineHeight(currentgp),
+						 gpFontFamily(currentgp, i),
+						 gpFont(currentgp, i),
+						 gpFontSize(currentgp, i), 
+						 gpLineHeight(currentgp, i),
 						 vpWidthCM, vpHeightCM,
 						 dd);
 	break;
     case 2:
 	for (i=0; i<nx; i++)  
 	    REAL(result)[i] = transformWidthtoNative(x, i, vpc, 
-						     gpFont(currentgp),
-						     gpFontSize(currentgp), 
-						     gpLineHeight(currentgp),
+						     gpFontFamily(currentgp, i),
+						     gpFont(currentgp, i),
+						     gpFontSize(currentgp, i), 
+						     gpLineHeight(currentgp, i),
 						     vpWidthCM, vpHeightCM,
 						     dd);
 	break;
     case 3:
 	for (i=0; i<nx; i++)  
 	    REAL(result)[i] = transformHeighttoNative(x, i, vpc, 
-						      gpFont(currentgp),
-						      gpFontSize(currentgp), 
-						      gpLineHeight(currentgp),
+						      gpFontFamily(currentgp, i),
+						      gpFont(currentgp, i),
+						      gpFontSize(currentgp, i), 
+						      gpLineHeight(currentgp, i),
 						      vpWidthCM, vpHeightCM,
 						      dd);
 	break;
@@ -587,8 +585,9 @@ SEXP L_moveTo(SEXP x, SEXP y)
     getViewportContext(currentvp, &vpc);
     /* Convert the x and y values to CM locations */
     transformLocn(x, y, 0, vpc, 
-		  gpFont(currentgp),
-		  gpFontSize(currentgp), gpLineHeight(currentgp),
+		  gpFontFamily(currentgp, 0),
+		  gpFont(currentgp, 0),
+		  gpFontSize(currentgp, 0), gpLineHeight(currentgp, 0),
 		  vpWidthCM, vpHeightCM,
 		  dd,
 		  transform,
@@ -624,8 +623,9 @@ SEXP L_lineTo(SEXP x, SEXP y)
     getViewportContext(currentvp, &vpc);
     /* Convert the x and y values to CM locations */
     transformLocn(x, y, 0, vpc,  
-		  gpFont(currentgp),
-		  gpFontSize(currentgp), gpLineHeight(currentgp),
+		  gpFontFamily(currentgp, 0),
+		  gpFont(currentgp, 0),
+		  gpFontSize(currentgp, 0), gpLineHeight(currentgp, 0),
 		  vpWidthCM, vpHeightCM,
 		  dd,
 		  transform,
@@ -636,8 +636,8 @@ SEXP L_lineTo(SEXP x, SEXP y)
     yy = toDeviceY(yy, GE_INCHES, dd);
     GEMode(1, dd);
     GELine(REAL(devloc)[0], REAL(devloc)[1], xx, yy, 
-	   gpCol(currentgp), gpGamma(currentgp),
-	   gpLineType(currentgp), gpLineWidth(currentgp), 
+	   gpCol(currentgp, 0), gpGamma(currentgp, 0),
+	   gpLineType(currentgp, 0), gpLineWidth(currentgp, 0), 
 	   dd);
     GEMode(0, dd);
     REAL(devloc)[0] = xx;
@@ -673,8 +673,9 @@ SEXP L_lines(SEXP x, SEXP y)
     yy = (double *) R_alloc(nx, sizeof(double));
     for (i=0; i<nx; i++) {
 	transformLocn(x, y, i, vpc, 
-		      gpFont(currentgp),
-		      gpFontSize(currentgp), gpLineHeight(currentgp),
+		      gpFontFamily(currentgp, i),
+		      gpFont(currentgp, 0),
+		      gpFontSize(currentgp, 0), gpLineHeight(currentgp, 0),
 		      vpWidthCM, vpHeightCM,
 		      dd,
 		      transform,
@@ -688,8 +689,8 @@ SEXP L_lines(SEXP x, SEXP y)
      */
     GEMode(1, dd);
     GEPolyline(nx, xx, yy, 
-	       gpCol(currentgp), gpGamma(currentgp),
-	       gpLineType(currentgp), gpLineWidth(currentgp), 
+	       gpCol(currentgp, 0), gpGamma(currentgp, 0),
+	       gpLineType(currentgp, 0), gpLineWidth(currentgp, 0), 
 	       dd);
     GEMode(0, dd);
     return R_NilValue;
@@ -729,13 +730,15 @@ SEXP L_segments(SEXP x0, SEXP y0, SEXP x1, SEXP y1)
     for (i=0; i<maxn; i++) {
 	double xx0, yy0, xx1, yy1;
 	transformLocn(x0, y0, i, vpc, 
-		      gpFont(currentgp),
-		      gpFontSize(currentgp), gpLineHeight(currentgp),
+		      gpFontFamily(currentgp, i),
+		      gpFont(currentgp, i),
+		      gpFontSize(currentgp, i), gpLineHeight(currentgp, i),
 		      vpWidthCM, vpHeightCM,
 		      dd, transform, &xx0, &yy0);
 	transformLocn(x1, y1, i, vpc, 
-		      gpFont(currentgp),
-		      gpFontSize(currentgp), gpLineHeight(currentgp),
+		      gpFontFamily(currentgp, i),
+		      gpFont(currentgp, i),
+		      gpFontSize(currentgp, i), gpLineHeight(currentgp, i),
 		      vpWidthCM, vpHeightCM,
 		      dd, transform, &xx1, &yy1);
 	/* The graphics engine only takes device coordinates
@@ -745,8 +748,8 @@ SEXP L_segments(SEXP x0, SEXP y0, SEXP x1, SEXP y1)
 	xx1 = toDeviceX(xx1, GE_INCHES, dd);
 	yy1 = toDeviceY(yy1, GE_INCHES, dd);
 	GELine(xx0, yy0, xx1, yy1, 
-	       gpCol(currentgp), gpGamma(currentgp),
-	       gpLineType(currentgp), gpLineWidth(currentgp),
+	       gpCol(currentgp, i), gpGamma(currentgp, i),
+	       gpLineType(currentgp, i), gpLineWidth(currentgp, i),
 	       dd);
     }
     GEMode(0, dd);
@@ -777,8 +780,9 @@ SEXP L_polygon(SEXP x, SEXP y)
     yy = (double *) R_alloc(nx + 1, sizeof(double));
     for (i=0; i<nx; i++) {
 	transformLocn(x, y, i, vpc, 
-		      gpFont(currentgp),
-		      gpFontSize(currentgp), gpLineHeight(currentgp),
+		      gpFontFamily(currentgp, i),
+		      gpFont(currentgp, 0),
+		      gpFontSize(currentgp, 0), gpLineHeight(currentgp, 0),
 		      vpWidthCM, vpHeightCM,
 		      dd,
 		      transform,
@@ -792,8 +796,8 @@ SEXP L_polygon(SEXP x, SEXP y)
      */
     GEMode(1, dd);
     GEPolygon(nx, xx, yy, 
-	      gpCol(currentgp), gpFill(currentgp), gpGamma(currentgp),
-	      gpLineType(currentgp), gpLineWidth(currentgp),
+	      gpCol(currentgp, 0), gpFill(currentgp, 0), gpGamma(currentgp, 0),
+	      gpLineType(currentgp, 0), gpLineWidth(currentgp, 0),
 	      dd);
     GEMode(0, dd);
     return R_NilValue;
@@ -824,8 +828,9 @@ SEXP L_circle(SEXP x, SEXP y, SEXP r)
     GEMode(1, dd);
     for (i=0; i<nx; i++) {
 	transformLocn(x, y, i, vpc, 
-		      gpFont(currentgp),
-		      gpFontSize(currentgp), gpLineHeight(currentgp),
+		      gpFontFamily(currentgp, i),
+		      gpFont(currentgp, i),
+		      gpFontSize(currentgp, i), gpLineHeight(currentgp, i),
 		      vpWidthCM, vpHeightCM,
 		      dd,
 		      transform,
@@ -835,15 +840,17 @@ SEXP L_circle(SEXP x, SEXP y, SEXP r)
 	 * take the smaller of the two values.
 	 */
 	rr1 = transformWidthtoINCHES(r, i % nr, vpc, 
-				     gpFont(currentgp),
-				     gpFontSize(currentgp), 
-				     gpLineHeight(currentgp),
+				     gpFontFamily(currentgp, i),
+				     gpFont(currentgp, i),
+				     gpFontSize(currentgp, i), 
+				     gpLineHeight(currentgp, i),
 				     vpWidthCM, vpHeightCM,
 				     dd);
 	rr2 = transformHeighttoINCHES(r, i % nr, vpc, 
-				      gpFont(currentgp),
-				      gpFontSize(currentgp), 
-				      gpLineHeight(currentgp),
+				      gpFontFamily(currentgp, i),
+				      gpFont(currentgp, i),
+				      gpFontSize(currentgp, i), 
+				      gpLineHeight(currentgp, i),
 				      vpWidthCM, vpHeightCM,
 				      dd);
 	rr = fmin2(rr1, rr2);
@@ -853,8 +860,8 @@ SEXP L_circle(SEXP x, SEXP y, SEXP r)
 	xx = toDeviceX(xx, GE_INCHES, dd);
 	yy = toDeviceY(yy, GE_INCHES, dd);
 	GECircle(xx, yy, rr, 
-		gpCol(currentgp), gpFill(currentgp), gpGamma(currentgp),
-		gpLineType(currentgp), gpLineWidth(currentgp),
+		gpCol(currentgp, i), gpFill(currentgp, i), gpGamma(currentgp, i),
+		gpLineType(currentgp, i), gpLineWidth(currentgp, i),
 		dd);
     }
     GEMode(0, dd);
@@ -888,23 +895,26 @@ SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h, SEXP just)
     GEMode(1, dd);
     for (i=0; i<nx; i++) {
 	transformLocn(x, y, i, vpc, 
-		      gpFont(currentgp),
-		      gpFontSize(currentgp), 
-		      gpLineHeight(currentgp),
+		      gpFontFamily(currentgp, i),
+		      gpFont(currentgp, i),
+		      gpFontSize(currentgp, i), 
+		      gpLineHeight(currentgp, i),
 		      vpWidthCM, vpHeightCM,
 		      dd,
 		      transform,
 		      &xx, &yy);
 	ww = transformWidthtoINCHES(w, i, vpc, 
-				    gpFont(currentgp),
-				    gpFontSize(currentgp), 
-				    gpLineHeight(currentgp),
+				    gpFontFamily(currentgp, i),
+				    gpFont(currentgp, i),
+				    gpFontSize(currentgp, i), 
+				    gpLineHeight(currentgp, i),
 				    vpWidthCM, vpHeightCM,
 				    dd);
 	hh = transformHeighttoINCHES(h, i, vpc, 
-				     gpFont(currentgp),
-				     gpFontSize(currentgp), 
-				     gpLineHeight(currentgp),
+				     gpFontFamily(currentgp, i),
+				     gpFont(currentgp, i),
+				     gpFontSize(currentgp, i), 
+				     gpLineHeight(currentgp, i),
 				     vpWidthCM, vpHeightCM,
 				     dd);
 	/* FIXME:  Need to check for NaN's and NA's
@@ -923,8 +933,8 @@ SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h, SEXP just)
 	    ww = toDeviceWidth(ww, GE_INCHES, dd);
 	    hh = toDeviceHeight(hh, GE_INCHES, dd);
 	    GERect(xx, yy, xx + ww, yy + hh, 
-		   gpCol(currentgp), gpFill(currentgp), gpGamma(currentgp),
-		   gpLineType(currentgp), gpLineWidth(currentgp),
+		   gpCol(currentgp, i), gpFill(currentgp, i), gpGamma(currentgp, i),
+		   gpLineType(currentgp, i), gpLineWidth(currentgp, i),
 		   dd);
 	} else {
 	    /* We have to do a little bit of work to figure out where the 
@@ -940,8 +950,9 @@ SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h, SEXP just)
 	    www = unit(xadj, L_INCHES);
 	    hhh = unit(yadj, L_INCHES);
 	    transformDimn(www, hhh, 0, vpc, 
-			  gpFont(currentgp),
-			  gpFontSize(currentgp), gpLineHeight(currentgp),
+			  gpFontFamily(currentgp, i),
+			  gpFont(currentgp, i),
+			  gpFontSize(currentgp, i), gpLineHeight(currentgp, i),
 			  vpWidthCM, vpHeightCM,
 			  dd, rotationAngle,
 			  &dw, &dh);
@@ -951,8 +962,9 @@ SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h, SEXP just)
 	    www = temp;
 	    hhh = unit(hh, L_INCHES);
 	    transformDimn(www, hhh, 0, vpc, 
-			  gpFont(currentgp),
-			  gpFontSize(currentgp), gpLineHeight(currentgp),
+			  gpFontFamily(currentgp, i),
+			  gpFont(currentgp, i),
+			  gpFontSize(currentgp, i), gpLineHeight(currentgp, i),
 			  vpWidthCM, vpHeightCM,
 			  dd, rotationAngle,
 			  &dw, &dh);
@@ -962,8 +974,9 @@ SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h, SEXP just)
 	    www = unit(ww, L_INCHES);
 	    hhh = unit(hh, L_INCHES);
 	    transformDimn(www, hhh, 0, vpc, 
-			  gpFont(currentgp),
-			  gpFontSize(currentgp), gpLineHeight(currentgp),
+			  gpFontFamily(currentgp, i),
+			  gpFont(currentgp, i),
+			  gpFontSize(currentgp, i), gpLineHeight(currentgp, i),
 			  vpWidthCM, vpHeightCM,
 			  dd, rotationAngle,
 			  &dw, &dh);
@@ -973,8 +986,9 @@ SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h, SEXP just)
 	    www = unit(ww, L_INCHES);
 	    hhh = temp;
 	    transformDimn(www, hhh, 0, vpc, 
-			  gpFont(currentgp),
-			  gpFontSize(currentgp), gpLineHeight(currentgp),
+			  gpFontFamily(currentgp, i),
+			  gpFont(currentgp, i),
+			  gpFontSize(currentgp, i), gpLineHeight(currentgp, i),
 			  vpWidthCM, vpHeightCM,
 			  dd, rotationAngle,
 			  &dw, &dh);
@@ -997,12 +1011,12 @@ SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h, SEXP just)
 	     * drawn on clipping boundary when there is a fill
 	     */
 	    GEPolygon(5, xxx, yyy, 
-		      NA_INTEGER, gpFill(currentgp), gpGamma(currentgp),
-		      gpLineType(currentgp), gpLineWidth(currentgp),
+		      NA_INTEGER, gpFill(currentgp, i), gpGamma(currentgp, i),
+		      gpLineType(currentgp, i), gpLineWidth(currentgp, i),
 		      dd);
 	    GEPolygon(5, xxx, yyy, 
-		      gpCol(currentgp), NA_INTEGER, gpGamma(currentgp),
-		      gpLineType(currentgp), gpLineWidth(currentgp),
+		      gpCol(currentgp, i), NA_INTEGER, gpGamma(currentgp, i),
+		      gpLineType(currentgp, i), gpLineWidth(currentgp, i),
 		      dd);
 	}
     }
@@ -1020,6 +1034,7 @@ SEXP L_text(SEXP label, SEXP x, SEXP y, SEXP just,
     double rotationAngle;
     LViewportContext vpc;
     LTransform transform;
+    SEXP txt;
     /* Bounding rectangles for checking overlapping
      */
     LRect *bounds;
@@ -1045,13 +1060,21 @@ SEXP L_text(SEXP label, SEXP x, SEXP y, SEXP just,
     yy = (double *) R_alloc(nx, sizeof(double));
     for (i=0; i<nx; i++) {
 	transformLocn(x, y, i, vpc, 
-		      gpFont(currentgp),
-		      gpFontSize(currentgp), gpLineHeight(currentgp),
+		      gpFontFamily(currentgp, i),
+		      gpFont(currentgp, i),
+		      gpFontSize(currentgp, i), gpLineHeight(currentgp, i),
 		      vpWidthCM, vpHeightCM,
 		      dd,
 		      transform,
 		      &(xx[i]), &(yy[i]));
     }
+    /* The label can be a string or an expression
+     */
+    PROTECT(txt = label);
+    if (isSymbol(txt) || isLanguage(txt))
+	txt = coerceVector(txt, EXPRSXP);
+    else if (!isExpression(txt))
+	txt = coerceVector(txt, STRSXP);
     if (overlapChecking) {
 	bounds = (LRect *) R_alloc(nx, sizeof(LRect));
     }
@@ -1061,9 +1084,11 @@ SEXP L_text(SEXP label, SEXP x, SEXP y, SEXP just,
 	if (overlapChecking) {
 	    int j = 0;
 	    LRect trect;
-	    textRect(xx[i], yy[i], 
-		     CHAR(STRING_ELT(label, i % LENGTH(label))), 
-		     gpFont(currentgp), 1, gpFontSize(currentgp),
+	    textRect(xx[i], yy[i], txt, i,
+		     gpFontFamily(currentgp, i),
+		     gpFont(currentgp, i), 
+		     gpLineHeight(currentgp, i),
+		     1, gpFontSize(currentgp, i),
 		     hjust, vjust, 
 		     numeric(rot, i % LENGTH(rot)) + rotationAngle, 
 		     dd, &trect);
@@ -1082,16 +1107,29 @@ SEXP L_text(SEXP label, SEXP x, SEXP y, SEXP just,
 	     */
 	    xx[i] = toDeviceX(xx[i], GE_INCHES, dd);
 	    yy[i] = toDeviceY(yy[i], GE_INCHES, dd);
-	    GEText(xx[i], yy[i], 
-		   CHAR(STRING_ELT(label, i % LENGTH(label))), 
-		   hjust, vjust, 
-		   numeric(rot, i % LENGTH(rot)) + rotationAngle, 
-		   gpCol(currentgp), gpGamma(currentgp), gpFont(currentgp),
-		   gpCex(currentgp), gpFontSize(currentgp),
-		   dd);
+	    if (isExpression(txt))
+		GEMathText(xx[i], yy[i],
+			   VECTOR_ELT(txt, i % LENGTH(txt)),
+			   hjust, vjust, 
+			   numeric(rot, i % LENGTH(rot)) + rotationAngle, 
+			   gpCol(currentgp, i), gpGamma(currentgp, i), 
+			   gpFont(currentgp, i),
+			   gpCex(currentgp, i), gpFontSize(currentgp, i),
+			   dd);
+	    else
+		GEText(xx[i], yy[i], 
+		       CHAR(STRING_ELT(txt, i % LENGTH(txt))), 
+		       hjust, vjust, 
+		       numeric(rot, i % LENGTH(rot)) + rotationAngle, 
+		       gpCol(currentgp, i), gpGamma(currentgp, i), 
+		       gpFontFamily(currentgp, i), gpFont(currentgp, i),
+		       gpLineHeight(currentgp, i),
+		       gpCex(currentgp, i), gpFontSize(currentgp, i),
+		       dd);
 	}
     }
     GEMode(0, dd);
+    UNPROTECT(1);
     return R_NilValue;    
 }
 
@@ -1122,8 +1160,9 @@ SEXP L_points(SEXP x, SEXP y, SEXP pch, SEXP size)
     yy = (double *) R_alloc(nx, sizeof(double));
     for (i=0; i<nx; i++) {
 	transformLocn(x, y, i, vpc, 
-		      gpFont(currentgp),
-		      gpFontSize(currentgp), gpLineHeight(currentgp),
+		      gpFontFamily(currentgp, i),
+		      gpFont(currentgp, i),
+		      gpFontSize(currentgp, i), gpLineHeight(currentgp, i),
 		      vpWidthCM, vpHeightCM,
 		      dd,
 		      transform,
@@ -1133,33 +1172,31 @@ SEXP L_points(SEXP x, SEXP y, SEXP pch, SEXP size)
 	xx[i] = toDeviceX(xx[i], GE_INCHES, dd);
 	yy[i] = toDeviceY(yy[i], GE_INCHES, dd);
     }
-    symbolSize = transformWidthtoINCHES(size, 0, vpc, 
-					gpFont(currentgp),
-					gpFontSize(currentgp), 
-					gpLineHeight(currentgp),
-					vpWidthCM, vpHeightCM, dd);
-    /* The graphics engine only takes device coordinates
-     */
-    symbolSize = toDeviceWidth(symbolSize, GE_INCHES, dd);
     GEMode(1, dd);
     for (i=0; i<nx; i++)
 	if (R_FINITE(xx[i]) && R_FINITE(yy[i])) {
 	    /* FIXME:  The symbols will not respond to viewport
 	     * rotations !!!
-	     * I've got myGSymbol because I want to be able to
-	     * use a unit to specify the size of symbols rather
-	     * than just cex
 	     */
 	    int ipch;
+	    symbolSize = transformWidthtoINCHES(size, i, vpc, 
+						gpFontFamily(currentgp, i),
+						gpFont(currentgp, i),
+						gpFontSize(currentgp, i), 
+						gpLineHeight(currentgp, i),
+						vpWidthCM, vpHeightCM, dd);
+	    /* The graphics engine only takes device coordinates
+	     */
+	    symbolSize = toDeviceWidth(symbolSize, GE_INCHES, dd);
 	    if (isString(pch))
 		ipch = CHAR(STRING_ELT(pch, i % npch))[0];
 	    else
 		ipch = INTEGER(pch)[i % npch];
 	    GESymbol(xx[i], yy[i], ipch, symbolSize,
-		     gpCol(currentgp), gpFill(currentgp), gpGamma(currentgp),
-		     gpLineType(currentgp), gpLineWidth(currentgp),
-		     gpFont(currentgp), gpCex(currentgp), 
-		     gpFontSize(currentgp),
+		     gpCol(currentgp, i), gpFill(currentgp, i), gpGamma(currentgp, i),
+		     gpLineType(currentgp, i), gpLineWidth(currentgp, i),
+		     gpFont(currentgp, i), gpCex(currentgp, i), 
+		     gpFontSize(currentgp, i),
 		     dd);
 	}
     GEMode(0, dd);

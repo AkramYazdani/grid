@@ -19,6 +19,10 @@ SEXP viewportHeight(SEXP vp) {
     return getListElement(vp, "height");
 }
 
+char* viewportFontFamily(SEXP vp) {
+    return CHAR(STRING_ELT(getListElement(vp, "cur.fontfamily"), 0));
+}
+
 int viewportFont(SEXP vp) {
     return INTEGER(getListElement(vp, "cur.font"))[0];
 }
@@ -120,6 +124,10 @@ void fillViewportLocationFromViewport(SEXP vp, LViewportLocation *vpl)
 void fillViewportContextFromViewport(SEXP vp, 
 				     LViewportContext *vpc)
 {
+    /* 
+     * Risk here if char* underlying vpc->fontfamily can get trashed?
+     */
+    vpc->fontfamily = viewportFontFamily(vp);
     vpc->font = viewportFont(vp);
     vpc->fontsize = viewportFontSize(vp);
     vpc->lineheight = viewportLineHeight(vp);
@@ -133,6 +141,10 @@ void fillViewportContextFromViewport(SEXP vp,
 
 void copyViewportContext(LViewportContext vpc1, LViewportContext *vpc2)
 {
+    /* 
+     * Risk here if char* underlying vpc->fontfamily can get trashed?
+     */
+    vpc2->fontfamily = vpc1.fontfamily;
     vpc2->font = vpc1.font;
     vpc2->fontsize = vpc1.fontsize;
     vpc2->lineheight = vpc1.lineheight;
@@ -234,12 +246,14 @@ void calcViewportTransform(SEXP vp, SEXP parent, Rboolean incremental,
     /* First, convert the location of the viewport into CM
      */
     xINCHES = transformXtoINCHES(vpl.x, 0, parentContext,
+				 viewportFontFamily(vp),
 				 viewportFont(vp),
 				 viewportFontSize(vp),
 				 viewportLineHeight(vp),
 				 parentWidthCM, parentHeightCM, 
 				 dd);
     yINCHES = transformYtoINCHES(vpl.y, 0, parentContext,
+				 viewportFontFamily(vp),
 				 viewportFont(vp),
 				 viewportFontSize(vp),
 				 viewportLineHeight(vp),
@@ -249,12 +263,14 @@ void calcViewportTransform(SEXP vp, SEXP parent, Rboolean incremental,
      * so that any viewports within this one can do transformations
      */
     vpWidthCM = transformWidthtoINCHES(vpl.width, 0, parentContext,
+				       viewportFontFamily(vp),
 				       viewportFont(vp),
 				       viewportFontSize(vp),
 				       viewportLineHeight(vp),
 				       parentWidthCM, parentHeightCM,
 				       dd)*2.54;
     vpHeightCM = transformHeighttoINCHES(vpl.height, 0, parentContext,
+					 viewportFontFamily(vp),
 					 viewportFont(vp),
 					 viewportFontSize(vp),
 					 viewportLineHeight(vp),
@@ -318,23 +334,26 @@ void calcViewportTransform(SEXP vp, SEXP parent, Rboolean incremental,
 void initVP(GEDevDesc *dd)
 {
     SEXP vpfnname, vpfn, vp;
-    SEXP font, lh, fs;
+    SEXP ff, font, lh, fs;
     SEXP currentgp = gridStateElement(dd, GSS_GPAR);
     SEXP gsd = (SEXP) dd->gesd[gridRegisterIndex]->systemSpecific;
     PROTECT(vpfnname = findFun(install("grid.top.level.vp"), R_GlobalEnv));
     PROTECT(vpfn = lang1(vpfnname));
     PROTECT(vp = eval(vpfn, R_GlobalEnv));
+    PROTECT(ff = allocVector(STRSXP, 1));
+    SET_STRING_ELT(ff, 0, mkChar(gpFontFamily(currentgp, 0)));
+    setListElement(vp, "cur.fontfamily", ff);
     PROTECT(font = allocVector(INTSXP, 1));
-    INTEGER(font)[0] = gpFont(currentgp);
+    INTEGER(font)[0] = gpFont(currentgp, 0);
     setListElement(vp, "cur.font", font);
     PROTECT(lh = allocVector(REALSXP, 1));
-    REAL(lh)[0] = gpLineHeight(currentgp);
+    REAL(lh)[0] = gpLineHeight(currentgp, 0);
     setListElement(vp, "cur.lineheight", lh);
     PROTECT(fs = allocVector(REALSXP, 1));
-    REAL(fs)[0] = gpFontSize(currentgp);
+    REAL(fs)[0] = gpFontSize(currentgp, 0);
     setListElement(vp, "cur.fontsize", fs);
     vp = doSetViewport(vp, R_NilValue, dd);
     SET_VECTOR_ELT(gsd, GSS_VP, vp);
-    UNPROTECT(6);
+    UNPROTECT(7);
 }
 

@@ -20,7 +20,7 @@ valid.viewport <- function(x, y, width, height, just, origin,
     layout.pos.col <- as.integer(rep(range(layout.pos.col), length.out=2))
   # Put all the valid things first so that are found quicker
   vp <- list(x = x, y = y, width = width, height = height,
-             valid.just = valid.just(just, 2),
+             valid.just = valid.just(just),
              valid.origin = valid.origin(origin),
              layout = layout,
              valid.pos.row = layout.pos.row,
@@ -37,6 +37,7 @@ valid.viewport <- function(x, y, width, height, just, origin,
              # We record here the "current" value so that we can
              # reset the value when a child viewport is popped.
              # Ditto font.
+             cur.fontfamily = NULL,
              cur.font = NULL,
              cur.fontsize = NULL,
              cur.lineheight = NULL,

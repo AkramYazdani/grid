@@ -34,6 +34,8 @@
 #define GP_FONTSIZE 6
 #define GP_LINEHEIGHT 7
 #define GP_FONT 8
+#define GP_FONTFAMILY 9
+#define GP_FONTFACE 10
 
 typedef double LTransform[3][3];
 
@@ -123,6 +125,7 @@ typedef struct {
  * for children of the viewport
  */
 typedef struct {
+    char *fontfamily;
     int font;
     double fontsize;
     double lineheight;
@@ -133,6 +136,41 @@ typedef struct {
     int hjust;
     int vjust;
 } LViewportContext;
+
+/* Functions called by R code
+ * (from all over the place)
+ */
+SEXP L_initGrid(); 
+SEXP L_killGrid(); 
+SEXP L_gridDirty();
+SEXP L_currentViewport(); 
+SEXP L_setviewport(SEXP vp, SEXP hasParent);
+SEXP L_unsetviewport(SEXP last);
+SEXP L_getDisplayList(); 
+SEXP L_setDisplayList(SEXP dl); 
+SEXP L_setDLelt(SEXP value);
+SEXP L_getDLindex();
+SEXP L_setDLindex(SEXP index);
+SEXP L_getDLon();
+SEXP L_setDLon(SEXP value);
+SEXP L_currentGPar();
+SEXP L_newpagerecording(SEXP ask);
+SEXP L_newpage();
+SEXP L_initGPar();
+SEXP L_initViewportStack();
+SEXP L_initDisplayList();
+SEXP L_convertToNative(SEXP x, SEXP what); 
+SEXP L_moveTo(SEXP x, SEXP y);
+SEXP L_lineTo(SEXP x, SEXP y);
+SEXP L_lines(SEXP x, SEXP y); 
+SEXP L_segments(SEXP x0, SEXP y0, SEXP x1, SEXP y1); 
+SEXP L_polygon(SEXP x, SEXP y);
+SEXP L_circle(SEXP x, SEXP y, SEXP r);
+SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h, SEXP just); 
+SEXP L_text(SEXP label, SEXP x, SEXP y, SEXP just, 
+	    SEXP rot, SEXP checkOverlap);
+SEXP L_points(SEXP x, SEXP y, SEXP pch, SEXP size);
+SEXP L_pretty(SEXP scale);
 
 /* From matrix.c */
 double locationX(LLocation l);
@@ -158,8 +196,6 @@ void trans(LLocation vin, LTransform m, LLocation vout);
 /* From unit.c */
 SEXP unit(double value, int unit);
 
-double unitValue(SEXP unit, int index);
-
 int unitUnit(SEXP unit, int index);
 
 SEXP unitData(SEXP unit, int index);
@@ -168,81 +204,83 @@ int unitLength(SEXP u);
 
 extern int L_nullLayoutMode;
 
+double pureNullUnitValue(SEXP unit, int index);
+
 int pureNullUnit(SEXP unit, int index);
 
 double transformX(SEXP x, int index, LViewportContext vpc,
-		  int font, double fontsize, double lineheight,
+		  char *fontfamily, int font, double fontsize, double lineheight,
 		  double widthCM, double heightCM,
 		  GEDevDesc *dd);
 
 double transformY(SEXP y, int index, LViewportContext vpc,
-		  int font, double fontsize, double lineheight,
+		  char *fontfamily, int font, double fontsize, double lineheight,
 		  double widthCM, double heightCM,
 		  GEDevDesc *dd);
 
 double transformWidth(SEXP width, int index, LViewportContext vpc,
-		      int font, double fontsize, double lineheight,
+		      char *fontfamily, int font, double fontsize, double lineheight,
 		      double widthCM, double heightCM,
 		      GEDevDesc *dd);
 
 double transformHeight(SEXP height, int index, LViewportContext vpc,
-		       int font, double fontsize, double lineheight,
+		       char *fontfamily, int font, double fontsize, double lineheight,
 		       double widthCM, double heightCM,
 		       GEDevDesc *dd);
 
 double transformXtoNative(SEXP x, int index,
 			  LViewportContext vpc,
-			  int font, double fontsize, double lineheight,
+			  char *fontfamily, int font, double fontsize, double lineheight,
 			  double widthCM, double heightCM,
 			  GEDevDesc *dd);
 
 double transformYtoNative(SEXP y, int index,
 			  LViewportContext vpc,
-			  int font, double fontsize, double lineheight,
+			  char *fontfamily, int font, double fontsize, double lineheight,
 			  double widthCM, double heightCM,
 			  GEDevDesc *dd);
 
 double transformWidthtoNative(SEXP width, int index,
 			      LViewportContext vpc,
-			      int font, double fontsize, double lineheight,
+			      char *fontfamily, int font, double fontsize, double lineheight,
 			      double widthCM, double heightCM,
 			      GEDevDesc *dd);
 
 double transformHeighttoNative(SEXP height, int index,
 			       LViewportContext vpc,
-			       int font, double fontsize, double lineheight,
+			       char *fontfamily, int font, double fontsize, double lineheight,
 			       double widthCM, double heightCM,
 			       GEDevDesc *dd);
 
 double transformXtoINCHES(SEXP x, int index, LViewportContext vpc,
-			  int font, double fontsize, double lineheight,
+			  char *fontfamily, int font, double fontsize, double lineheight,
 			  double widthCM, double heightCM,
 			  GEDevDesc *dd);
 
 double transformYtoINCHES(SEXP y, int index, LViewportContext vpc,
-			  int font, double fontsize, double lineheight,
+			  char *fontfamily, int font, double fontsize, double lineheight,
 			  double widthCM, double heightCM,
 			  GEDevDesc *dd);
 
 void transformLocn(SEXP x, SEXP y, int index, LViewportContext vpc,
-		   int font, double fontsize, double lineheight,
+		   char *fontfamily, int font, double fontsize, double lineheight,
 		   double widthCM, double heightCM,
 		   GEDevDesc *dd,
 		   LTransform t,
 		   double *xx, double *yy);
 
 double transformWidthtoINCHES(SEXP w, int index, LViewportContext vpc,
-			      int font, double fontsize, double lineheight,
+			      char *fontfamily, int font, double fontsize, double lineheight,
 			      double widthCM, double heightCM,
 			      GEDevDesc *dd);
 
 double transformHeighttoINCHES(SEXP h, int index, LViewportContext vpc,
-			       int font, double fontsize, double lineheight,
+			       char *fontfamily, int font, double fontsize, double lineheight,
 			       double widthCM, double heightCM,
 			       GEDevDesc *dd);
 
 void transformDimn(SEXP w, SEXP h, int index, LViewportContext vpc,
-		   int font, double fontsize, double lineheight,
+		   char *fontfamily, int font, double fontsize, double lineheight,
 		   double widthCM, double heightCM,
 		   GEDevDesc *dd,
 		   double rotationAngle,
@@ -277,31 +315,34 @@ void copyRect(LRect r1, LRect *r);
 
 int intersect(LRect r1, LRect r2);
 
-void textRect(double x, double y, char *string, 
-	      int font, double cex, double ps,
+void textRect(double x, double y, SEXP text, int i,
+	      char *fontfamily, int font, double lineheight,
+	      double cex, double ps,
 	      double xadj, double yadj,
 	      double rot, GEDevDesc *dd, LRect *r);
 
 /* From gpar.c */
-double gpFontSize(SEXP gp);
+double gpFontSize(SEXP gp, int i);
 
-double gpLineHeight(SEXP gp);
+double gpLineHeight(SEXP gp, int i);
 
-int gpCol(SEXP gp);
+int gpCol(SEXP gp, int i);
 
 SEXP gpFillSXP(SEXP gp);
 
-int gpFill(SEXP gp);
+int gpFill(SEXP gp, int i);
 
-double gpGamma(SEXP gp);
+double gpGamma(SEXP gp, int i);
 
-int gpLineType(SEXP gp);
+int gpLineType(SEXP gp, int i);
 
-double gpLineWidth(SEXP gp);
+double gpLineWidth(SEXP gp, int i);
 
-double gpCex(SEXP gp);
+double gpCex(SEXP gp, int i);
 
-int gpFont(SEXP gp);
+int gpFont(SEXP gp, int i);
+
+char* gpFontFamily(SEXP gp, int i);
 
 void initGPar(GEDevDesc *dd);
 
@@ -313,6 +354,8 @@ SEXP viewportY(SEXP vp);
 SEXP viewportWidth(SEXP vp);
 
 SEXP viewportHeight(SEXP vp);
+
+char* viewportFontFamily(SEXP vp);
 
 int viewportFont(SEXP vp);
 

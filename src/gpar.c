@@ -3,57 +3,106 @@
 extern int gridRegisterIndex;
 
 /* Some access methods for gpars */
-double gpFontSize(SEXP gp) {
-    return REAL(getListElement(gp, "fontsize"))[0];
+SEXP gpFontSizeSXP(SEXP gp) {
+    return VECTOR_ELT(gp, GP_FONTSIZE);
 }
 
-double gpLineHeight(SEXP gp) {
-    return REAL(getListElement(gp, "lineheight"))[0];
+double gpFontSize(SEXP gp, int i) {
+    SEXP fontsize = gpFontSizeSXP(gp);
+    return REAL(fontsize)[i % LENGTH(fontsize)];
 }
 
-int gpCol(SEXP gp) {
-    SEXP col = getListElement(gp, "col");
+SEXP gpLineHeightSXP(SEXP gp) {
+    return VECTOR_ELT(gp, GP_LINEHEIGHT);
+}
+
+double gpLineHeight(SEXP gp, int i) {
+    SEXP lineheight = gpLineHeightSXP(gp);
+    return REAL(lineheight)[i % LENGTH(lineheight)];
+}
+
+int gpCol(SEXP gp, int i) {
+    SEXP col = VECTOR_ELT(gp, GP_COL);
     int result;
     if (isNull(col))
 	result = NA_INTEGER;
     else
-	result = RGBpar(col, 0);
+	result = RGBpar(col, i % LENGTH(col));
     return result;
 }
 
 SEXP gpFillSXP(SEXP gp) {
-    return getListElement(gp, "fill");
+    return VECTOR_ELT(gp, GP_FILL);
 }
 
-int gpFill(SEXP gp) {
+int gpFill(SEXP gp, int i) {
     SEXP fill = gpFillSXP(gp);
     int result;
     if (isNull(fill))
 	result = NA_INTEGER;
     else
-	result = RGBpar(fill, 0);
+	result = RGBpar(fill, i % LENGTH(fill));
     return result;
 }
 
-double gpGamma(SEXP gp) {
-    return REAL(getListElement(gp, "gamma"))[0];
+SEXP gpGammaSXP(SEXP gp) {
+    return VECTOR_ELT(gp, GP_GAMMA);
 }
 
-int gpLineType(SEXP gp) {
-    return LTYpar(getListElement(gp, "lty"), 0);
+double gpGamma(SEXP gp, int i) {
+    SEXP gamma = gpGammaSXP(gp);
+    return REAL(gamma)[i % LENGTH(gamma)];
 }
 
-double gpLineWidth(SEXP gp) {
-    return REAL(getListElement(gp, "lwd"))[0];
+SEXP gpLineTypeSXP(SEXP gp) {
+    return VECTOR_ELT(gp, GP_LTY);
 }
 
-double gpCex(SEXP gp) {
-    return REAL(getListElement(gp, "cex"))[0];
+int gpLineType(SEXP gp, int i) {
+    SEXP linetype = gpLineTypeSXP(gp);
+    return LTYpar(linetype, i % LENGTH(linetype));
 }
 
-int gpFont(SEXP gp) {
-    return INTEGER(getListElement(gp, "font"))[0];
+SEXP gpLineWidthSXP(SEXP gp) {
+    return VECTOR_ELT(gp, GP_LWD);
 }
+
+double gpLineWidth(SEXP gp, int i) {
+    SEXP linewidth = gpLineWidthSXP(gp);
+    return REAL(linewidth)[i % LENGTH(linewidth)];
+}
+
+SEXP gpCexSXP(SEXP gp) {
+    return VECTOR_ELT(gp, GP_CEX);
+}
+
+double gpCex(SEXP gp, int i) {
+    SEXP cex = gpCexSXP(gp);
+    return REAL(cex)[i % LENGTH(cex)];
+}
+
+SEXP gpFontSXP(SEXP gp) {
+    return VECTOR_ELT(gp, GP_FONT);
+}
+
+int gpFont(SEXP gp, int i) {
+    SEXP font = gpFontSXP(gp);
+    return INTEGER(font)[i % LENGTH(font)];
+}
+
+SEXP gpFontFamilySXP(SEXP gp) {
+    return VECTOR_ELT(gp, GP_FONTFAMILY);
+}
+
+char* gpFontFamily(SEXP gp, int i) {
+    SEXP fontfamily = gpFontFamilySXP(gp);
+    return CHAR(STRING_ELT(fontfamily, i % LENGTH(fontfamily)));
+}
+
+/*
+ * Never access fontface because fontface values are stored in font
+ * Historical reasons ...
+ */
 
 SEXP L_setGPar(SEXP gpars) 
 {
@@ -102,9 +151,10 @@ void initGPar(GEDevDesc *dd)
     NewDevDesc *dev = dd->dev;
     SEXP gpar, gparnames;
     SEXP gpfill, gpcol, gpgamma, gplty, gplwd, gpcex, gpfs, gplh, gpfont;
+    SEXP gpfontfamily;
     SEXP gsd = (SEXP) dd->gesd[gridRegisterIndex]->systemSpecific;
-    PROTECT(gpar = allocVector(VECSXP, 9));
-    PROTECT(gparnames = allocVector(STRSXP, 9));
+    PROTECT(gpar = allocVector(VECSXP, 10));
+    PROTECT(gparnames = allocVector(STRSXP, 10));
     SET_STRING_ELT(gparnames, GP_FILL, mkChar("fill"));
     SET_STRING_ELT(gparnames, GP_COL, mkChar("col"));
     SET_STRING_ELT(gparnames, GP_GAMMA, mkChar("gamma"));
@@ -114,6 +164,7 @@ void initGPar(GEDevDesc *dd)
     SET_STRING_ELT(gparnames, GP_FONTSIZE, mkChar("fontsize"));
     SET_STRING_ELT(gparnames, GP_LINEHEIGHT, mkChar("lineheight"));
     SET_STRING_ELT(gparnames, GP_FONT, mkChar("font"));
+    SET_STRING_ELT(gparnames, GP_FONTFAMILY, mkChar("fontfamily"));
     setAttrib(gpar, R_NamesSymbol, gparnames);
     /* FIXME:  Need to export col2name via (probably) GraphicsEngine.h
      * In the meantime I just have to override the device settings
@@ -146,6 +197,9 @@ void initGPar(GEDevDesc *dd)
     PROTECT(gpfont = allocVector(INTSXP, 1));
     INTEGER(gpfont)[0] = dev->startfont;
     SET_VECTOR_ELT(gpar, GP_FONT, gpfont);
+    PROTECT(gpfontfamily = allocVector(STRSXP, 1));
+    SET_STRING_ELT(gpfontfamily, 0, mkChar(""));
+    SET_VECTOR_ELT(gpar, GP_FONTFAMILY, gpfontfamily);
     SET_VECTOR_ELT(gsd, GSS_GPAR, gpar);
-    UNPROTECT(11);
+    UNPROTECT(12);
 }

@@ -6,8 +6,9 @@ recycle.data <- function(data, data.per, max.n) {
   # handled equivalently
   # The test for whether it is only a single value currently
   # consists of a check for mode="character" (i.e., a single
-  # string) or class="grob" (i.e., a single grob)
-  if (is.character(data) || is.grob(data)) 
+  # string) or mode="expression" (i.e., a single expression)
+  # or class="grob" (i.e., a single grob)
+  if (is.character(data) || is.expression(data) || is.grob(data)) 
     data <- list(data)
   if (data.per)
     n <- max.n
@@ -70,12 +71,14 @@ valid.data <- function(units, data) {
   str.units <- units == "strwidth"
   if (any(str.units != 0))
     for (i in (1:n)[str.units])
-      if (!(length(data) >= i && is.character(data[[i]])))
+      if (!(length(data) >= i &&
+            (is.character(data[[i]]) || is.expression(data[[i]]))))
         stop("No string supplied for `strwidth' unit")
   str.units <- units == "strheight"
   if (any(str.units != 0))
     for (i in (1:n)[str.units])
-      if (!(length(data) >= i && is.character(data[[i]])))
+      if (!(length(data) >= i &&
+            (is.character(data[[i]]) || is.expression(data[[i]]))))
         stop("No string supplied for `strheight' unit")
   # Make sure that a grob has been specified
   grob.units <- units == "grobwidth"
@@ -94,7 +97,7 @@ valid.data <- function(units, data) {
 }
 
 valid.units <- function(units) {
-  .Call("validUnits", units)
+  .Call("validUnits", units, PACKAGE="grid")
 }
 
 as.character.unit <- function(unit) {

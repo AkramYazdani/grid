@@ -170,29 +170,44 @@ int intersect(LRect r1, LRect r2)
 /* Calculate the bounding rectangle for a string.
  * x and y assumed to be in INCHES.
  */
-void textRect(double x, double y, char *string, 
-	      int font, double cex, double ps,
+void textRect(double x, double y, SEXP text, int i,
+	      char *fontfamily, int font, double lineheight,
+	      double cex, double ps,
 	      double xadj, double yadj,
 	      double rot, GEDevDesc *dd, LRect *r) 
 {
     /* NOTE that we must work in inches for the angles to be correct
      */
-    double w = fromDeviceWidth(GEStrWidth(string, font, cex, ps, dd),
-			       GE_INCHES, dd);
-    double h = fromDeviceHeight(GEStrHeight(string, font, cex, ps, dd),
-				GE_INCHES, dd);
     double x1, x2, x3, x4, y1, y2, y3, y4;
-    double rotrad = DEG2RAD*rot;
-    double sinrotrad = sin(rotrad);
-    double cosrotrad = cos(rotrad);
-    double wxbit = xadj*w*cosrotrad;
-    double hxbit = yadj*h*sinrotrad;
-    double wxbit2 = (1-xadj)*w*cosrotrad;
-    double hxbit2 = (1-yadj)*h*sinrotrad;
-    double wybit = xadj*w*sinrotrad;
-    double hybit = yadj*h*cosrotrad;
-    double wybit2 = (1-xadj)*w*sinrotrad;
-    double hybit2 = (1-yadj)*h*cosrotrad;
+    double w, h, rotrad, sinrotrad, cosrotrad;
+    double wxbit, hxbit, wxbit2, hxbit2;
+    double wybit, hybit, wybit2, hybit2;
+    if (isExpression(text)) {
+	SEXP expr = VECTOR_ELT(text, i % LENGTH(text));
+	w = fromDeviceWidth(GEExpressionWidth(expr, font, cex, ps, dd),
+			    GE_INCHES, dd);
+	h = fromDeviceHeight(GEExpressionHeight(expr, font, cex, ps, dd),
+			     GE_INCHES, dd);
+    } else {
+	char* string = CHAR(STRING_ELT(text, i % LENGTH(text)));
+	w = fromDeviceWidth(GEStrWidth(string, fontfamily, font, lineheight,
+				       cex, ps, dd),
+			    GE_INCHES, dd);
+	h = fromDeviceHeight(GEStrHeight(string, fontfamily, font, lineheight,
+					 cex, ps, dd),
+			     GE_INCHES, dd);
+    }
+    rotrad = DEG2RAD*rot;
+    sinrotrad = sin(rotrad);
+    cosrotrad = cos(rotrad);
+    wxbit = xadj*w*cosrotrad;
+    hxbit = yadj*h*sinrotrad;
+    wxbit2 = (1-xadj)*w*cosrotrad;
+    hxbit2 = (1-yadj)*h*sinrotrad;
+    wybit = xadj*w*sinrotrad;
+    hybit = yadj*h*cosrotrad;
+    wybit2 = (1-xadj)*w*sinrotrad;
+    hybit2 = (1-yadj)*h*cosrotrad;
     x1 = x - wxbit + hxbit;
     y1 = y - wybit - hybit;
     x2 = x + wxbit2 + hxbit2;
@@ -232,12 +247,24 @@ SEXP L_CreateSEXPPtr(SEXP s)
 SEXP L_GetSEXPPtr(SEXP sp)
 {
     SEXP data = R_ExternalPtrAddr(sp); 
+    /* Check for NULL ptr
+     * This can occur if, for example, a grid grob is saved
+     * and then loaded.  The saved grob has its ptr null'ed
+     */
+    if (data == NULL)
+	error("grid grob object is empty");
     return VECTOR_ELT(data, 0);
 }
 
 SEXP L_SetSEXPPtr(SEXP sp, SEXP s)
 {
     SEXP data = R_ExternalPtrAddr(sp);
+    /* Check for NULL ptr
+     * This can occur if, for example, a grid grob is saved
+     * and then loaded.  The saved grob has its ptr null'ed
+     */
+    if (data == NULL)
+	error("grid grob object is empty");
     SET_VECTOR_ELT(data, 0, s);
     return R_NilValue;
 }

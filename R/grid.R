@@ -28,6 +28,7 @@ push.vp <- function(vps, index, len, recording) {
   # the viewport for its gpar settings because the viewport may only
   # specify some gpar values.  So we record the default settings
   # we will need to know about
+  vp$cur.fontfamily <- get.gpar("fontfamily")
   vp$cur.font <- get.gpar("font")
   vp$cur.fontsize <- get.gpar("fontsize")
   vp$cur.lineheight <- get.gpar("lineheight")
@@ -100,12 +101,12 @@ grid.newpage <- function(recording=TRUE) {
   # NOTE that we do NOT do grid.Call here because we have to do
   # things slightly differently if grid.newpage is the first grid operation
   # on a new device
-  .Call("L_newpagerecording", par("ask"))
-  .Call("L_newpage")
-  .Call("L_initGPar")
-  .Call("L_initViewportStack")
+  .Call("L_newpagerecording", par("ask"), PACKAGE="grid")
+  .Call("L_newpage", PACKAGE="grid")
+  .Call("L_initGPar", PACKAGE="grid")
+  .Call("L_initViewportStack", PACKAGE="grid")
   if (recording)
-    .Call("L_initDisplayList")
+    .Call("L_initDisplayList", PACKAGE="grid")
 }
 
 ###########
@@ -175,12 +176,12 @@ record.viewport <- function(vp) {
 # .Call.graphics unless you have a good reason and you know what
 # you are doing -- this will be a bit of overkill, but is for safety
 grid.Call <- function(fnname, ...) {
-  .Call("L_gridDirty")
-  .Call(fnname, ...)
+  .Call("L_gridDirty", PACKAGE="grid")
+  .Call(fnname, ..., PACKAGE="grid")
 }
 
 grid.Call.graphics <- function(fnname, ...) {
-  .Call.graphics("L_gridDirty")
-  .Call.graphics(fnname, ...)
+  .Call.graphics("L_gridDirty", PACKAGE="grid")
+  .Call.graphics(fnname, ..., PACKAGE="grid")
 }
 

@@ -30,17 +30,39 @@ gpar(...)
     lty \tab Line type \cr
     lwd \tab Line width \cr
     fontsize \tab The size of text (in points) \cr
+    fontfamily \tab The font family \cr
+    fontface \tab The font face (bold, italic, ...) \cr
     lineheight \tab The height of a line as a multiple of fontsize \cr
-    font \tab Font face \cr
+    font \tab Font face (alias for fontface;  for
+    backward compatibility) \cr
   }
 
+  For most devices, the \code{fontfamily} is specified when the device
+  is first opened and may not be changed thereafter -- i.e., specifying
+  a different font family via \code{fontfamily} will be ignored.  This
+  will hopefully change in future versions of R.  Also, there is an
+  important exception:  \code{fontfamily} may be used to specify one
+  of the Hershey Font families (e.g., \code{HersheySerif})
+  and this specification will be honoured
+  on all devices.
+
+  The specification of \code{fontface} follows the R base graphics
+  standard:  1 = plain, 2 = bold, 3 = italic, 4 = bold italic.
+  
   Specifying the value \code{NULL} for a parameter is the same as not
   specifying any value for that parameter, except for \code{col} and
   \code{fill}, where \code{NULL} indicates not to draw a border or
-  not to fill an area (respectively).  
+  not to fill an area (respectively).
+
+  All parameter values can be vectors of multiple values.  (This will
+  not always make sense -- for example, viewports will only take
+  notice of the first parameter value.)
 }
 \value{
   An object of class \code{"gpar"}.
+}
+\seealso{
+  \code{\link{Hershey}}.
 }
 \author{Paul Murrell}
 \examples{
@@ -53,5 +75,8 @@ grid.collection(grid.rect(gp=gpar(col="red"), draw=FALSE),
                 gp=gpar(col="green"), vp=vp)
 grid.text("This text is the colour set by the viewport (blue)",
           y=1, just=c("center", "bottom"), gp=gpar(fontsize=20), vp=vp)
+grid.newpage()
+# example with multiple values for a parameter
+grid.points(1:10/11, 1:10/11, gp=gpar(col=1:10))
 }
 \keyword{ dplot }%-- one or more ...

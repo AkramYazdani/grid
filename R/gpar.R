@@ -40,6 +40,43 @@ validGP <- function(gpars) {
     else
       gpars$font <- as.integer(gpars$font)
   }
+  # fontfamily should be character
+  if (!is.na(match("fontfamily", names(gpars)))) {
+    if (is.null(gpars$fontfamily))
+      gpars$fontfamily <- NULL
+    else 
+      gpars$fontfamily <- as.character(gpars$fontfamily)
+  }
+  # fontface can be character or integer;  map character to integer
+  # store value in font
+  # Illegal to specify both font and fontface
+  if (!is.na(match("fontface", names(gpars)))) {
+    if (!is.na(match("font", names(gpars))))
+      stop("Must specify only one of font and fontface")
+    if (is.null(gpars$fontface))
+      gpars$font <- NULL
+    else {
+      if (is.numeric(gpars$fontface))
+        gpars$font <- as.integer(gpars$fontface)
+      else {
+        temp.char <- as.character(gpars$fontface)
+        temp.num <- 0
+        for (i in 1:length(temp.char))
+          temp.num[i] <- switch(temp.char[i],
+                                plain=1,
+                                italic=3,
+                                oblique=3,
+                                bold=2,
+                                bold.italic=4,
+                                symbol=5,
+                                # These are Hershey variants
+                                cyrillic=5,
+                                cyrillic.oblique=6,
+                                EUC=7)
+        gpars$font <- as.integer(temp.num)
+      }
+    }
+  }
   gpars
 }
 
@@ -57,8 +94,10 @@ pop.saved.gpars <- function() {
 }
 
 # possible gpar names
+# The order must match the GP_* values in grid.h
 .grid.gpar.names <- c("fill", "col", "gamma", "lty", "lwd", "cex",
-                      "fontsize", "lineheight", "font")
+                      "fontsize", "lineheight", "font", "fontfamily",
+                      "fontface")
 
 # Set .grid.gpars to keep grid record of current settings
 set.gpar <- function(gp) {

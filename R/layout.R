@@ -16,7 +16,9 @@ valid.layout <- function(nrow, ncol, widths, heights, respect) {
       stop("'respect' must be logical or an 'nrow' by 'ncol' matrix")
     }
   if (is.matrix(respect)) {
-    respect.mat <- as.integer(respect)
+    respect.mat <- matrix(as.integer(respect),
+                          dim(respect)[1],
+                          dim(respect)[2])
     respect <- 2
   }
   else {
@@ -112,9 +114,9 @@ grid.layout <- function (nrow = 1, ncol = 1,
                          respect = FALSE)
 {
   if (!is.unit(widths))
-    unit(widths, default.units)
+    widths <- unit(widths, default.units)
   if (!is.unit(heights))
-    unit(heights, default.units) 
+    heights <- unit(heights, default.units) 
   valid.layout(nrow, ncol, widths, heights, respect)
 }
 

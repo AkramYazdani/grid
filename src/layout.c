@@ -59,6 +59,7 @@ void allocateKnownWidths(SEXP layout,
     for (i=0; i<layoutNCol(layout); i++) 
 	if (!relativeWidths[i]) {
 	    npcWidths[i] = transformWidth(widths, i, parentContext,
+					  parentContext.fontfamily,
 					  parentContext.font,
 					  parentContext.fontsize,
 					  parentContext.lineheight,
@@ -79,6 +80,7 @@ void allocateKnownHeights(SEXP layout,
     for (i=0; i<layoutNRow(layout); i++) 
 	if (!relativeHeights[i]) {
 	    npcHeights[i] = transformHeight(heights, i, parentContext,
+					    parentContext.fontfamily,
 					    parentContext.font,
 					    parentContext.fontsize,
 					    parentContext.lineheight,
@@ -96,7 +98,7 @@ int colRespected(int col, SEXP layout) {
 	result = 1;
     else
 	for (i=0; i<layoutNRow(layout); i++)
-	    if (respectMat[i*layoutNCol(layout) + col] != 0)
+	    if (respectMat[col*layoutNRow(layout) + i] != 0)
 		result = 1;
     return result;
 }
@@ -110,7 +112,7 @@ int rowRespected(int row, SEXP layout) {
 	result = 1;
     else
 	for (i=0; i<layoutNCol(layout); i++)
-	    if (respectMat[row*layoutNCol(layout) + i] != 0)
+	    if (respectMat[i*layoutNRow(layout) + row] != 0)
 		result = 1;
     return result;
 }
@@ -128,6 +130,7 @@ double totalWidth(SEXP layout, int *relativeWidths,
     for (i=0; i<layoutNCol(layout); i++) 
 	if (relativeWidths[i])
 	    totalWidth += transformWidth(widths, i, parentContext, 
+					 parentContext.fontfamily,
 					 parentContext.font,
 					 parentContext.fontsize,
 					 parentContext.lineheight,
@@ -147,6 +150,7 @@ double totalHeight(SEXP layout, int *relativeHeights,
     for (i=0; i<layoutNRow(layout); i++) 
 	if (relativeHeights[i])
 	    totalHeight += transformHeight(heights, i, parentContext, 
+					   parentContext.fontfamily,
 					   parentContext.font,
 					   parentContext.fontsize,
 					   parentContext.lineheight,
@@ -192,9 +196,10 @@ void allocateRespected(SEXP layout,
 		    /* Build a unit SEXP with a single value and no data
 		     */
 		    SEXP width;
-		    PROTECT(width = unit(unitValue(widths, i)/denom*mult, 
-					 L_CM));
+		    PROTECT(width = unit(pureNullUnitValue(widths, i) / 
+					 denom*mult, L_CM));
 		    npcWidths[i] = transformWidth(width, 0, parentContext,
+						  parentContext.fontfamily,
 						  parentContext.font,
 						  parentContext.fontsize,
 						  parentContext.lineheight,
@@ -211,9 +216,10 @@ void allocateRespected(SEXP layout,
 	    if (relativeHeights[i])
 		if (rowRespected(i, layout)) {
 		    SEXP height;
-		    PROTECT(height = unit(unitValue(heights, i)/denom*mult,
-					  L_CM));
+		    PROTECT(height = unit(pureNullUnitValue(heights, i) / 
+					  denom*mult, L_CM));
 		    npcHeights[i] = transformHeight(height, 0, parentContext,
+						    parentContext.fontfamily,
 						    parentContext.font,
 						    parentContext.fontsize,
 						    parentContext.lineheight,
@@ -241,6 +247,7 @@ double totalUnrespectedWidth(SEXP layout, int *relativeWidths,
 	if (relativeWidths[i])
 	    if (!colRespected(i, layout))
 		totalWidth += transformWidth(widths, i, parentContext, 
+					     parentContext.fontfamily,
 					     parentContext.font,
 					     parentContext.fontsize,
 					     parentContext.lineheight,
@@ -261,6 +268,7 @@ double totalUnrespectedHeight(SEXP layout, int *relativeHeights,
 	if (relativeHeights[i])
 	    if (!rowRespected(i, layout))
 		totalHeight += transformHeight(heights, i, parentContext, 
+					       parentContext.fontfamily,
 					       parentContext.font,
 					       parentContext.fontsize,
 					       parentContext.lineheight,
@@ -284,6 +292,7 @@ void allocateRemainingWidth(SEXP layout, int *relativeWidths,
 	    if (!colRespected(i, layout))
 		npcWidths[i] = multiplier*
 		    transformWidth(widths, i, parentContext, 
+				   parentContext.fontfamily,
 				   parentContext.font,
 				   parentContext.fontsize,
 				   parentContext.lineheight,
@@ -308,6 +317,7 @@ void allocateRemainingHeight(SEXP layout, int *relativeHeights,
 	    if (!rowRespected(i, layout))
 		npcHeights[i] = multiplier*
 		    transformHeight(heights, i, parentContext, 
+				    parentContext.fontfamily,
 				    parentContext.font,
 				    parentContext.fontsize,
 				    parentContext.lineheight,

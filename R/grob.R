@@ -12,7 +12,7 @@
 # so that we can do generic things with them too.
 grid.grob <- function(list.struct, cl=NULL, draw=TRUE) {
   class(list.struct) <- c(cl, "glist")
-  ptr <- .Call("L_CreateSEXPPtr", list.struct)
+  ptr <- .Call("L_CreateSEXPPtr", list.struct, PACKAGE="grid")
   grob <- list(ptr)
   class(grob) <- "grob"
   if (draw)
@@ -36,7 +36,7 @@ get.value.default <- function(x, child.specs=NULL) {
 }
 
 get.value.grob <- function(grob, child.specs=NULL) {
-  result <- .Call("L_GetSEXPPtr", grob[[1]])
+  result <- .Call("L_GetSEXPPtr", grob[[1]], PACKAGE="grid")
   if (length(child.specs) > 0) 
     result <- get.value(result[[child.specs[[1]]]],
                         child.specs[-1])
@@ -57,7 +57,7 @@ set.value.grob <- function(grob, child.specs, list.struct) {
     target <- grob
   else
     target <- get.value.grob(grob, child.specs[-ncs])[[child.specs[[ncs]]]]
-  .Call("L_SetSEXPPtr", target[[1]], list.struct)
+  .Call("L_SetSEXPPtr", target[[1]], list.struct, PACKAGE="grid")
 }
 
 # Wrap a list.struct within a grob external pointer
