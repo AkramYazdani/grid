@@ -46,6 +46,8 @@ valid.unit <- function(x, units, data) {
 convertNative <- function(unit, dimension="x", type="location") {
   what <- match(dimension, c("x", "y")) - 1 +
     2*(match(type, c("location", "dimension")) - 1)
+  if (!is.unit(unit))
+    stop("`unit' argument must be a unit object")
   if (is.na(what))
     stop("Invalid dimension or type")
   grid.Call("L_convertToNative", unit, as.integer(what))
