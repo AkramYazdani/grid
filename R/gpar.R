@@ -13,13 +13,20 @@ is.gpar <- function(x) {
 }
 
 validGP <- function(gpars) {
+  # Check a (non-NULL) gpar is not of length 0
+  check.length <- function(gparname) {
+    if (length(gpars[[gparname]]) == 0)
+      stop(paste("gpar element", gparname, "must not be length 0"))
+  }
   # Check a gpar is numeric and not NULL
   numnotnull <- function(gparname) {
     if (!is.na(match(gparname, names(gpars)))) {
       if (is.null(gpars[[gparname]]))
         gpars[[gparname]] <<- NULL
-      else 
+      else {
+        check.length(gparname)
         gpars[[gparname]] <<- as.numeric(gpars[[gparname]])
+      }
     }
   }
   # fontsize, lineheight, cex, lwd should be numeric and not NULL
@@ -30,22 +37,29 @@ validGP <- function(gpars) {
   numnotnull("gamma")
   # col and fill are converted in C code
   # so is lty, BUT still want to check for NULL
-  if (!is.na(match("lty", names(gpars)))) 
+  if (!is.na(match("lty", names(gpars)))) {
     if (is.null(gpars$lty))
-      gpars$lty <- NULL  
+      gpars$lty <- NULL
+    else
+      check.length("lty")
+  }
   # font should be integer and not NULL
   if (!is.na(match("font", names(gpars)))) {
     if (is.null(gpars$font))
       gpars$font <- NULL
-    else
+    else {
+      check.length("font")
       gpars$font <- as.integer(gpars$font)
+    }
   }
   # fontfamily should be character
   if (!is.na(match("fontfamily", names(gpars)))) {
     if (is.null(gpars$fontfamily))
       gpars$fontfamily <- NULL
-    else 
+    else {
+      check.length("fontfamily")
       gpars$fontfamily <- as.character(gpars$fontfamily)
+    }
   }
   # fontface can be character or integer;  map character to integer
   # store value in font
@@ -56,6 +70,7 @@ validGP <- function(gpars) {
     if (is.null(gpars$fontface))
       gpars$font <- NULL
     else {
+      check.length("fontface")
       if (is.numeric(gpars$fontface))
         gpars$font <- as.integer(gpars$fontface)
       else {

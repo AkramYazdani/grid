@@ -1,4 +1,4 @@
-valid.viewport <- function(x, y, width, height, just, origin,
+valid.viewport <- function(x, y, width, height, just, 
                            gp, clip,
                            xscale, yscale, angle,
                            layout, layout.pos.row, layout.pos.col) {
@@ -21,7 +21,6 @@ valid.viewport <- function(x, y, width, height, just, origin,
   # Put all the valid things first so that are found quicker
   vp <- list(x = x, y = y, width = width, height = height,
              valid.just = valid.just(just),
-             valid.origin = valid.origin(origin),
              layout = layout,
              valid.pos.row = layout.pos.row,
              valid.pos.col = layout.pos.col,
@@ -57,7 +56,6 @@ valid.viewport <- function(x, y, width, height, just, origin,
              angle = angle,
              parent = NULL,
              justification = just,
-             origin = origin,
              layout.pos.row = layout.pos.row,
              layout.pos.col = layout.pos.col)
   class(vp) <- "viewport"
@@ -93,7 +91,6 @@ viewport <- function(x = unit(0.5, "npc"),
                      height = unit(1, "npc"),
                      default.units = "npc",
                      just = "centre",
-                     origin = "bottom.left",
                      gp = gpar(),
                      clip = FALSE,
                      # FIXME: scales are only linear at the moment 
@@ -113,7 +110,7 @@ viewport <- function(x = unit(0.5, "npc"),
     width <- unit(width, default.units)
   if (!is.unit(height))
     height <- unit(height, default.units)
-  valid.viewport(x, y, width, height, just, origin,
+  valid.viewport(x, y, width, height, just, 
                  gp, clip, xscale, yscale, angle,
                  layout, layout.pos.row, layout.pos.col)
 }

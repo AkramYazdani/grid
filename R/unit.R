@@ -31,6 +31,8 @@ recycle.data <- function(data, data.per, max.n) {
 unit <- function(x, units, data=NULL) {
   if (!is.numeric(x))
     stop("x must be numeric")
+  if (length(x) == 0 || length(units) == 0)
+    stop("x and units must have length > 0")
   valid.unit(x, units, recycle.data(data, FALSE, length(x)))
 }
 
@@ -68,13 +70,13 @@ convertNative <- function(unit, dimension="x", type="location") {
 # Make sure that and "str*" and "grob*" units have data
 valid.data <- function(units, data) {
   n <- length(units)
-  str.units <- units == "strwidth"
+  str.units <- (units == "strwidth" | units == "mystrwidth")
   if (any(str.units != 0))
     for (i in (1:n)[str.units])
       if (!(length(data) >= i &&
             (is.character(data[[i]]) || is.expression(data[[i]]))))
         stop("No string supplied for `strwidth' unit")
-  str.units <- units == "strheight"
+  str.units <- (units == "strheight" | units == "mystrheight")
   if (any(str.units != 0))
     for (i in (1:n)[str.units])
       if (!(length(data) >= i &&

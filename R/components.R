@@ -39,7 +39,7 @@ common.draw.axis <- function(axis) {
 draw.details.xaxis <- function(x, x.wrapped, recording=TRUE) {
   # We may have to create the children if there was not
   # enough information available at creation time
-  if (is.na(x$at)) {
+  if (is.null(x$at)) {
     # FIXME:  There should be a grid.pretty rather than
     # forcing users to use grid.Call
     at <- grid.pretty(current.viewport()$xscale)
@@ -58,7 +58,7 @@ editDetails.xaxis <- function(x, new.values) {
   if (match("at", slot.names, nomatch=0)) {
     # NOTE that grid.edit has already set x$at to the new value
     # We might set at to NULL to get ticks recalculated at redraw
-    if (!is.na(x$at)) {
+    if (!is.null(x$at)) {
       x$major <- make.xaxis.major(x$at, x$main)
       x$ticks <- make.xaxis.ticks(x$at, x$main)
       if (x$label)
@@ -107,9 +107,9 @@ make.xaxis.labels <- function(at, main) {
 
 # The "main" x-axis is on the bottom when vp$origin is "bottom.*"
 # and on the top when vp$origin is "top.*"
-grid.xaxis <- function(at=NA, label = TRUE, main=TRUE, gp=gpar(),
+grid.xaxis <- function(at=NULL, label = TRUE, main=TRUE, gp=gpar(),
                    draw=TRUE, vp=NULL) {
-  if (is.na(at))
+  if (is.null(at))
     if (is.null(vp)) {
       # We do not have enough information to make the ticks and labels
       major <- NULL
@@ -118,7 +118,7 @@ grid.xaxis <- function(at=NA, label = TRUE, main=TRUE, gp=gpar(),
     }
     else
       at <- grid.pretty(vp$xscale)
-  if (!is.na(at)) {
+  if (!is.null(at)) {
     major <- make.xaxis.major(at, main)
     ticks <- make.xaxis.ticks(at, main)
     if (label)
@@ -134,7 +134,7 @@ grid.xaxis <- function(at=NA, label = TRUE, main=TRUE, gp=gpar(),
 draw.details.yaxis <- function(x, x.wrapped, recording=TRUE) {
   # We may have to create the children if there was not
   # enough information available at creation time
-  if (is.na(x$at)) {
+  if (is.null(x$at)) {
     at <- grid.pretty(current.viewport()$yscale)
     grid.edit(x.wrapped, at=at, redraw=FALSE)
     x <- grid.get(x.wrapped)
@@ -145,7 +145,7 @@ draw.details.yaxis <- function(x, x.wrapped, recording=TRUE) {
 editDetails.yaxis <- function(x, new.values) {
   slot.names <- names(new.values)
   if (match("at", slot.names, nomatch=0)) {
-    if (!is.na(x$at)) {
+    if (!is.null(x$at)) {
       x$major <- make.yaxis.major(x$at, x$main)
       x$ticks <- make.yaxis.ticks(x$at, x$main)
       if (x$label)
@@ -195,9 +195,9 @@ make.yaxis.labels <- function(at, main) {
 
 # The "main" y-axis is on the left when vp$origin is "*.left"
 # and on the right when vp$origin is "*.right"
-grid.yaxis <- function(at=NA, label=TRUE, main=TRUE, gp=gpar(),
+grid.yaxis <- function(at=NULL, label=TRUE, main=TRUE, gp=gpar(),
                    draw=TRUE, vp=NULL) {
-  if (is.na(at))
+  if (is.null(at))
     if (is.null(vp)) {
       # We do not have enough information to make the ticks and labels
       major <- NULL
@@ -206,7 +206,7 @@ grid.yaxis <- function(at=NA, label=TRUE, main=TRUE, gp=gpar(),
     }
     else
       at <- grid.pretty(vp$yscale)
-  if (!is.na(at)) {
+  if (!is.null(at)) {
     major <- make.yaxis.major(at, main)
     ticks <- make.yaxis.ticks(at, main)
     if (label)

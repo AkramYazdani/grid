@@ -651,7 +651,7 @@ SEXP L_lineTo(SEXP x, SEXP y)
  */
 SEXP L_lines(SEXP x, SEXP y) 
 {
-    int i, nx;
+    int i, nx, ny;
     double *xx, *yy;
     double vpWidthCM, vpHeightCM;
     double rotationAngle;
@@ -667,7 +667,10 @@ SEXP L_lines(SEXP x, SEXP y)
 			 &vpWidthCM, &vpHeightCM, 
 			 transform, &rotationAngle);
     getViewportContext(currentvp, &vpc);
-    nx = unitLength(x); 
+    nx = unitLength(x);
+    ny = unitLength(y); 
+    if (ny > nx) 
+	nx = ny;
     /* Convert the x and y values to CM locations */
     xx = (double *) R_alloc(nx, sizeof(double));
     yy = (double *) R_alloc(nx, sizeof(double));
@@ -1078,57 +1081,62 @@ SEXP L_text(SEXP label, SEXP x, SEXP y, SEXP just,
     if (overlapChecking) {
 	bounds = (LRect *) R_alloc(nx, sizeof(LRect));
     }
-    GEMode(1, dd);
-    for (i=0; i<nx; i++) {
-	int doDrawing = 1;
-	if (overlapChecking) {
-	    int j = 0;
-	    LRect trect;
-	    textRect(xx[i], yy[i], txt, i,
-		     gpFontFamily(currentgp, i),
-		     gpFont(currentgp, i), 
-		     gpLineHeight(currentgp, i),
-		     1, gpFontSize(currentgp, i),
-		     hjust, vjust, 
-		     numeric(rot, i % LENGTH(rot)) + rotationAngle, 
-		     dd, &trect);
-	    while (doDrawing && (j < numBounds)) 
-		if (intersect(trect, bounds[j++]))
-		    doDrawing = 0;
-	    if (doDrawing) {
-		copyRect(trect, &(bounds[numBounds]));
-		numBounds++;
+    /* 
+     * Check we have any text to draw
+     */
+    if (LENGTH(txt) > 0) {
+	GEMode(1, dd);
+	for (i=0; i<nx; i++) {
+	    int doDrawing = 1;
+	    if (overlapChecking) {
+		int j = 0;
+		LRect trect;
+		textRect(xx[i], yy[i], txt, i,
+			 gpFontFamily(currentgp, i),
+			 gpFont(currentgp, i), 
+			 gpLineHeight(currentgp, i),
+			 1, gpFontSize(currentgp, i),
+			 hjust, vjust, 
+			 numeric(rot, i % LENGTH(rot)) + rotationAngle, 
+			 dd, &trect);
+		while (doDrawing && (j < numBounds)) 
+		    if (intersect(trect, bounds[j++]))
+			doDrawing = 0;
+		if (doDrawing) {
+		    copyRect(trect, &(bounds[numBounds]));
+		    numBounds++;
+		}
 	    }
-	}
-	if (doDrawing) {
-	    /* FIXME:  Need to check for NaN's and NA's
-	     */
-	    /* The graphics engine only takes device coordinates
-	     */
-	    xx[i] = toDeviceX(xx[i], GE_INCHES, dd);
-	    yy[i] = toDeviceY(yy[i], GE_INCHES, dd);
-	    if (isExpression(txt))
-		GEMathText(xx[i], yy[i],
-			   VECTOR_ELT(txt, i % LENGTH(txt)),
+	    if (doDrawing) {
+		/* FIXME:  Need to check for NaN's and NA's
+		 */
+		/* The graphics engine only takes device coordinates
+		 */
+		xx[i] = toDeviceX(xx[i], GE_INCHES, dd);
+		yy[i] = toDeviceY(yy[i], GE_INCHES, dd);
+		if (isExpression(txt))
+		    GEMathText(xx[i], yy[i],
+			       VECTOR_ELT(txt, i % LENGTH(txt)),
+			       hjust, vjust, 
+			       numeric(rot, i % LENGTH(rot)) + rotationAngle, 
+			       gpCol(currentgp, i), gpGamma(currentgp, i), 
+			       gpFont(currentgp, i),
+			       gpCex(currentgp, i), gpFontSize(currentgp, i),
+			       dd);
+		else
+		    GEText(xx[i], yy[i], 
+			   CHAR(STRING_ELT(txt, i % LENGTH(txt))), 
 			   hjust, vjust, 
 			   numeric(rot, i % LENGTH(rot)) + rotationAngle, 
 			   gpCol(currentgp, i), gpGamma(currentgp, i), 
-			   gpFont(currentgp, i),
+			   gpFontFamily(currentgp, i), gpFont(currentgp, i),
+			   gpLineHeight(currentgp, i),
 			   gpCex(currentgp, i), gpFontSize(currentgp, i),
 			   dd);
-	    else
-		GEText(xx[i], yy[i], 
-		       CHAR(STRING_ELT(txt, i % LENGTH(txt))), 
-		       hjust, vjust, 
-		       numeric(rot, i % LENGTH(rot)) + rotationAngle, 
-		       gpCol(currentgp, i), gpGamma(currentgp, i), 
-		       gpFontFamily(currentgp, i), gpFont(currentgp, i),
-		       gpLineHeight(currentgp, i),
-		       gpCex(currentgp, i), gpFontSize(currentgp, i),
-		       dd);
+	    }
 	}
+	GEMode(0, dd);
     }
-    GEMode(0, dd);
     UNPROTECT(1);
     return R_NilValue;    
 }
@@ -1206,6 +1214,7 @@ SEXP L_points(SEXP x, SEXP y, SEXP pch, SEXP size)
 SEXP L_pretty(SEXP scale) {
     double min = numeric(scale, 0);
     double max = numeric(scale, 1);
+    double temp;
     /* FIXME:  This is just a dummy pointer because we do not have
      * log scales.  This will cause death and destruction if it is 
      * not addressed when log scales are added !
@@ -1214,7 +1223,21 @@ SEXP L_pretty(SEXP scale) {
     double axp[3];
     /* FIXME:  Default preferred number of ticks hard coded ! */
     int n = 5;
+    Rboolean swap = min > max;
+    /* 
+     * Feature: 
+     * like R, something like  xscale = c(100,0)  just works 
+     */
+    if(swap) { 
+	temp = min; min = max; max = temp;
+    }
+
     GEPretty(&min, &max, &n);
+
+    if(swap) {
+	temp = min; min = max; max = temp;
+    }
+
     axp[0] = min;
     axp[1] = max;
     axp[2] = n;

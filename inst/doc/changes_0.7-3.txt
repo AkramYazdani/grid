@@ -1,3 +1,73 @@
+Changes from grid_0.7-2 to grid_0.7-3:
+------------------------------------
+
+1.  Properly removed "origin" settings from viewports.
+
+2.  Modified grid.pretty() slightly so that it would respond
+    sensibly/usefully to things like ...
+
+        grid.pretty(c(10, 0))
+
+    A side-effect of this is that the following sort of viewport
+    scale specifications become sensible/useful ...
+
+        push.viewport(viewport(layout=grid.layout(1, 2)))
+        push.viewport(viewport(layout.pos.col=1))
+        push.viewport(viewport(w=.8, h=.8,
+                               xscale=c(10,0)))
+        grid.points(1:10, 1:10/11)
+        grid.xaxis()
+        grid.yaxis()
+        pop.viewport(2)
+        push.viewport(viewport(layout.pos.col=2))
+        push.viewport(viewport(w=.8, h=.8,
+                               yscale=c(10,0)))
+        grid.points(1:10/11, 1:10)
+        grid.xaxis()
+        grid.yaxis()
+        pop.viewport(3)
+
+3.  Fixed the calculation of number of "vertices" in grid.lines so that
+    it is the maximum of length(x) and length(y).
+
+    Used to be calculated solely on length(x).
+
+4.  Grid now throws an error if you try to create a unit of length 0.
+
+    This to fix a bug reported by Bud Gibson, the essence of which was ...
+
+        grid.points(size=unit(numeric(0), "mm"))
+
+5.  The default value of the "at" argument for grid.xaxis() and
+    grid.yaxis() is NULL (was NA;  NA was inconsistent with other
+    default argument settings and basically a dumb idea)
+
+6.  Grid now throws an error if you try to create a gpar object with
+    an element of length 0.
+
+    This is to fix a bug reported by Michael Friendly (and diagnosed by
+    Brian Ripley), the essence of which was ...
+
+         grid.lines(gpar(fontsize=numeric(0)))
+
+7.  grid.text() now converts its label argument to a string.
+
+    This is to fix a bug where "grobwidth" or "grobheight" would 
+    segfault if given a text grob for which the label was not a string.
+    (The fix involved including a check for "mystrwidth" and "mystrheight"
+     units in valid.data).
+
+    The bug could be produced by ...
+    
+        grid.rect(w=unit(1, "grobwidth", data=grid.text(5)))
+    
+
+Changes from grid_0.7-1 to grid_0.7-2:
+-------------------------------------
+
+1.  Fixed some generic/method incompatibilities (pointed out by Kurt).
+
+
 Changes from grid_0.7 to grid_0.7-1:
 ------------------------------------
 

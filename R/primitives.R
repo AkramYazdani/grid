@@ -194,7 +194,7 @@ grid.text <- function(label, x=unit(0.5, "npc"), y=unit(0.5, "npc"),
     x <- unit(x, default.units)
   if (!is.unit(y))
     y <- unit(y, default.units)
-  txt <- list(label=label, x=x, y=y, gp=gp,
+  txt <- list(label=as.character(label), x=x, y=y, gp=gp,
               just=just, rot=rot, check.overlap=check.overlap,
               vp=vp)
   cl <- "text"

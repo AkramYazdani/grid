@@ -11,7 +11,7 @@
 viewport(x = unit(0.5, "npc"), y = unit(0.5, "npc"),
          width = unit(1, "npc"), height = unit(1, "npc"),
          default.units = "npc", just = "centre", 
-         origin = "bottom.left", gp = gpar(), clip = FALSE,
+         gp = gpar(), clip = FALSE,
          xscale = c(0, 1), yscale = c(0, 1),
          angle = 0,
          layout = NULL, layout.pos.row = NULL, layout.pos.col = NULL)
@@ -31,10 +31,6 @@ viewport(x = unit(0.5, "npc"), y = unit(0.5, "npc"),
     vertical justification.  Possible values are: \code{"left"},
     \code{"right"}, \code{"centre"}, \code{"center"}, \code{"bottom"},
     and \code{"top"}.}
-  \item{origin}{A string specifying the
-    origin of the coordinate systems within this
-    viewport.  Possible values are: \code{"bottom.left"},
-    \code{"bottom.right"}, \code{"top.left"}, and \code{"top.right"}}
   \item{fontsize}{The default size of text within this viewport.
     Used to determine the size of 1 unit in \code{"lines"} units.}
   \item{lineheight}{A numeric value specifying the vertical distance
