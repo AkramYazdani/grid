@@ -160,9 +160,9 @@ grid.show.viewport <- function(v, parent.layout=NULL, newpage=TRUE, vp=NULL) {
     push.viewport(v)
     gp.red <- gpar(col="red")
     grid.rect(gp=gpar(col="blue", fill="light blue"))
-    at <- .Call("L_pretty", v$xscale)
+    at <- grid.pretty(v$xscale)
     grid.xaxis(at=c(min(at), max(at)), gp=gp.red)
-    at <- .Call("L_pretty", v$yscale)
+    at <- grid.pretty(v$yscale)
     grid.yaxis(at=c(min(at), max(at)), gp=gp.red)
     pop.viewport(2)
     if (!is.null(vp))
@@ -188,9 +188,9 @@ grid.show.viewport <- function(v, parent.layout=NULL, newpage=TRUE, vp=NULL) {
     grid.rect(gp=gpar(col="blue", fill="light blue"))
     # represent the "native" scale
     gp.red <- gpar(col="red")
-    at <- .Call("L_pretty", v$xscale)
+    at <- grid.pretty(v$xscale)
     grid.xaxis(at=c(min(at), max(at)), gp=gp.red)
-    at <- .Call("L_pretty", v$yscale)
+    at <- grid.pretty(v$yscale)
     grid.yaxis(at=c(min(at), max(at)), gp=gp.red)
     grid.text(as.character(w), gp=gp.red,
           just=c("centre", "bottom"),

@@ -62,6 +62,8 @@ SEXP L_killGrid()
     return R_NilValue;
 }
 
+/* Get the current device -- create one if there isn't one already
+ */
 GEDevDesc* getDevice() 
 {
     if (NoDevices()) {
@@ -74,6 +76,70 @@ GEDevDesc* getDevice()
 	UNPROTECT(1);
     }
     return GEcurrentDevice();
+}
+
+/* If this is the first time that a grid operation has occurred for 
+ * this device, do some initialisation.
+ * NOTE that this does some things that make base R graphics risky
+ * on the device hereafter.
+ */
+void dirtyGridDevice(GEDevDesc *dd) {
+    SEXP gsd, griddev;
+    if (!LOGICAL(gridStateElement(dd, GSS_GRIDDEVICE))[0]) {
+	/* Record the fact that this device has now received grid output
+	 */
+	gsd = (SEXP) dd->gesd[gridRegisterIndex]->systemSpecific;
+	PROTECT(griddev = allocVector(LGLSXP, 1));
+	LOGICAL(griddev)[0] = TRUE;
+	SET_VECTOR_ELT(gsd, GSS_GRIDDEVICE, griddev);
+	UNPROTECT(1);
+	/* FIXME: Gross hack to stop the base graphics moaning at me.
+	 * This should be removed when base graphics have been 
+	 * properly split from the graphics engine.
+	 */
+	/* This is dangerous if base graphics are used in same device
+	 * because could then do base graphics operations that 
+	 * base graphics would normally not allow because 
+	 * plot.new() has not been called
+	 */
+	/* There is further danger that base graphics could switch it
+	 * off again, thereby incapacitating grid graphics.
+	 * For example, this might happen if a device is made too
+	 * small.
+	 */
+	GSetState(1, (DevDesc*) dd);
+	/* Even grosser hack to stop base graphics moaning
+	 */
+	/* This is currently the only way to set gpptr(dd)->valid
+	 * Needs fixing (in base graphics)!
+	 */
+	/* NOTE that this needs to go before the createGridSystemState
+	 * so that the silly clipping region it sets will get
+	 * overridden by the top-level viewport
+	 */
+	GNewPlot(FALSE);
+	/* Create a top-level viewport for this device
+	 */
+	initVP(dd);
+	/* The top-level viewport goes at the start of the display list
+	 */
+	initDL(dd);
+    }
+}
+
+SEXP L_gridDirty()
+{
+    /* Get the current device 
+     */
+    GEDevDesc *dd = getDevice();
+    dirtyGridDevice(dd);
+    /* Ensure that base graphics (the GCheckState call in do_dotgraphics)
+     * will not complain.
+     * FIXME:
+     * This should come out once more changes to base graphics have been made.
+     */
+    GSetState(1, (DevDesc*) dd);
+    return R_NilValue;
 }
 
 void getViewportContext(SEXP vp, LViewportContext *vpc)
@@ -212,9 +278,6 @@ SEXP doSetViewport(SEXP vp, SEXP hasParent, GEDevDesc *dd)
     return vp;
 }
 
-/* hasParent will be TRUE for viewports pushed from R code
- * an NULL for the top-level viewport set in C code
- */
 SEXP L_setviewport(SEXP vp, SEXP hasParent)
 {
     /* Get the current device 
@@ -369,12 +432,16 @@ SEXP L_newpagerecording(SEXP ask)
 SEXP L_newpage()
 {
     GEDevDesc *dd = getDevice();
-    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
-    SEXP fill = gpFillSXP(currentgp);
-    if (isNull(fill))
-	GENewPage(NA_INTEGER, gpGamma(currentgp), dd);
-    else
-	GENewPage(RGBpar(fill, 0), gpGamma(currentgp), dd);
+    if (!LOGICAL(gridStateElement(dd, GSS_GRIDDEVICE))[0]) 
+	dirtyGridDevice(dd);
+    else {
+	SEXP currentgp = gridStateElement(dd, GSS_GPAR);
+	SEXP fill = gpFillSXP(currentgp);
+	if (isNull(fill))
+	    GENewPage(NA_INTEGER, gpGamma(currentgp), dd);
+	else
+	    GENewPage(RGBpar(fill, 0), gpGamma(currentgp), dd);
+    }
     return R_NilValue;
 }
 
@@ -439,12 +506,12 @@ SEXP L_convertToNative(SEXP x, SEXP what)
     double rotationAngle;
     LViewportContext vpc;
     LTransform transform;
-    SEXP result;
+    SEXP result, currentvp, currentgp;
     /* Get the current device 
      */
     GEDevDesc *dd = getDevice();
-    SEXP currentvp = gridStateElement(dd, GSS_VP);
-    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
+    currentvp = gridStateElement(dd, GSS_VP);
+    currentgp = gridStateElement(dd, GSS_GPAR);
     getViewportTransform(currentvp, dd, 
 			 &vpWidthCM, &vpHeightCM, 
 			 transform, &rotationAngle);
@@ -506,12 +573,13 @@ SEXP L_moveTo(SEXP x, SEXP y)
     double rotationAngle;
     LViewportContext vpc;
     LTransform transform;
+    SEXP devloc;
+    SEXP currentvp, currentgp;
     /* Get the current device 
      */
     GEDevDesc *dd = getDevice();
-    SEXP currentvp = gridStateElement(dd, GSS_VP);
-    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
-    SEXP devloc;
+    currentvp = gridStateElement(dd, GSS_VP);
+    currentgp = gridStateElement(dd, GSS_GPAR);
     PROTECT(devloc = gridStateElement(dd, GSS_CURRLOC));
     getViewportTransform(currentvp, dd, 
 			 &vpWidthCM, &vpHeightCM, 
@@ -542,12 +610,13 @@ SEXP L_lineTo(SEXP x, SEXP y)
     double rotationAngle;
     LViewportContext vpc;
     LTransform transform;
+    SEXP devloc;
+    SEXP currentvp, currentgp;
     /* Get the current device 
      */
     GEDevDesc *dd = getDevice();
-    SEXP currentvp = gridStateElement(dd, GSS_VP);
-    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
-    SEXP devloc;
+    currentvp = gridStateElement(dd, GSS_VP);
+    currentgp = gridStateElement(dd, GSS_GPAR);
     PROTECT(devloc = gridStateElement(dd, GSS_CURRLOC));
     getViewportTransform(currentvp, dd, 
 			 &vpWidthCM, &vpHeightCM, 
@@ -588,11 +657,12 @@ SEXP L_lines(SEXP x, SEXP y)
     double rotationAngle;
     LViewportContext vpc;
     LTransform transform;
+    SEXP currentvp, currentgp;
     /* Get the current device 
      */
     GEDevDesc *dd = getDevice();
-    SEXP currentvp = gridStateElement(dd, GSS_VP);
-    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
+    currentvp = gridStateElement(dd, GSS_VP);
+    currentgp = gridStateElement(dd, GSS_GPAR);
     getViewportTransform(currentvp, dd, 
 			 &vpWidthCM, &vpHeightCM, 
 			 transform, &rotationAngle);
@@ -632,11 +702,12 @@ SEXP L_segments(SEXP x0, SEXP y0, SEXP x1, SEXP y1)
     double rotationAngle;
     LViewportContext vpc;
     LTransform transform;
+    SEXP currentvp, currentgp;
     /* Get the current device 
      */
     GEDevDesc *dd = getDevice();
-    SEXP currentvp = gridStateElement(dd, GSS_VP);
-    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
+    currentvp = gridStateElement(dd, GSS_VP);
+    currentgp = gridStateElement(dd, GSS_GPAR);
     getViewportTransform(currentvp, dd, 
 			 &vpWidthCM, &vpHeightCM, 
 			 transform, &rotationAngle);
@@ -690,11 +761,12 @@ SEXP L_polygon(SEXP x, SEXP y)
     double rotationAngle;
     LViewportContext vpc;
     LTransform transform;
+    SEXP currentvp, currentgp;
     /* Get the current device 
      */
     GEDevDesc *dd = getDevice();
-    SEXP currentvp = gridStateElement(dd, GSS_VP);
-    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
+    currentvp = gridStateElement(dd, GSS_VP);
+    currentgp = gridStateElement(dd, GSS_GPAR);
     getViewportTransform(currentvp, dd, 
 			 &vpWidthCM, &vpHeightCM, 
 			 transform, &rotationAngle);
@@ -735,11 +807,12 @@ SEXP L_circle(SEXP x, SEXP y, SEXP r)
     double rotationAngle;
     LViewportContext vpc;
     LTransform transform;
+    SEXP currentvp, currentgp;
     /* Get the current device 
      */
     GEDevDesc *dd = getDevice();
-    SEXP currentvp = gridStateElement(dd, GSS_VP);
-    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
+    currentvp = gridStateElement(dd, GSS_VP);
+    currentgp = gridStateElement(dd, GSS_GPAR);
     getViewportTransform(currentvp, dd, 
 			 &vpWidthCM, &vpHeightCM, 
 			 transform, &rotationAngle);
@@ -799,11 +872,12 @@ SEXP L_rect(SEXP x, SEXP y, SEXP w, SEXP h, SEXP just)
     int i, nx;
     LViewportContext vpc;
     LTransform transform;
+    SEXP currentvp, currentgp;
     /* Get the current device 
      */
     GEDevDesc *dd = getDevice();
-    SEXP currentvp = gridStateElement(dd, GSS_VP);
-    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
+    currentvp = gridStateElement(dd, GSS_VP);
+    currentgp = gridStateElement(dd, GSS_GPAR);
     getViewportTransform(currentvp, dd, 
 			 &vpWidthCM, &vpHeightCM, 
 			 transform, &rotationAngle);
@@ -951,11 +1025,12 @@ SEXP L_text(SEXP label, SEXP x, SEXP y, SEXP just,
     LRect *bounds;
     int numBounds = 0;
     int overlapChecking = LOGICAL(checkOverlap)[0];
+    SEXP currentvp, currentgp;
     /* Get the current device 
      */
     GEDevDesc *dd = getDevice();
-    SEXP currentvp = gridStateElement(dd, GSS_VP);
-    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
+    currentvp = gridStateElement(dd, GSS_VP);
+    currentgp = gridStateElement(dd, GSS_GPAR);
     getViewportTransform(currentvp, dd, 
 			 &vpWidthCM, &vpHeightCM, 
 			 transform, &rotationAngle);
@@ -1030,11 +1105,12 @@ SEXP L_points(SEXP x, SEXP y, SEXP pch, SEXP size)
     double symbolSize;
     LViewportContext vpc;
     LTransform transform;
+    SEXP currentvp, currentgp;
     /* Get the current device 
      */
     GEDevDesc *dd = getDevice();
-    SEXP currentvp = gridStateElement(dd, GSS_VP);
-    SEXP currentgp = gridStateElement(dd, GSS_GPAR);
+    currentvp = gridStateElement(dd, GSS_VP);
+    currentgp = gridStateElement(dd, GSS_GPAR);
     getViewportTransform(currentvp, dd, 
 			 &vpWidthCM, &vpHeightCM, 
 			 transform, &rotationAngle);

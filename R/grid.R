@@ -34,7 +34,7 @@ push.vp <- function(vps, index, len, recording) {
   # Calculate viewport transform 
   # NOTE that we will have modified "vp" within L_setviewport
   # to record the current transformation and layout
-  .Call.graphics("L_setviewport", vp, TRUE)
+  grid.Call.graphics("L_setviewport", vp, TRUE)
   # Push further viewports if required
   if (index < len) 
     push.vp(vps, index+1, len, recording)
@@ -51,14 +51,14 @@ push.viewport <- function(..., recording=TRUE) {
 }
 
 pop.vp <- function(last.one, recording) {
-  vp <- .Call("L_currentViewport")
+  vp <- grid.Call("L_currentViewport")
   # Fail if trying to pop top-level viewport
   if (is.null(vp$parent))
     stop("Illegal to pop top-level viewport")
   # Unset gpar settings
   unset.gpar(vp$gp)
   # Allow for recalculation of viewport transform if necessary
-  .Call.graphics("L_unsetviewport", last.one)
+  grid.Call.graphics("L_unsetviewport", last.one)
 }
 
 pop.viewport <- function(n=1, recording=TRUE) {
@@ -85,7 +85,7 @@ pop.viewport <- function(n=1, recording=TRUE) {
 # current viewport (see e.g., lgrid)
 current.viewport <- function(vp=NULL) {
   if (is.null(vp))
-    .Call("L_currentViewport")
+    grid.Call("L_currentViewport")
   else
     vp
 }
@@ -97,6 +97,9 @@ current.viewport <- function(vp=NULL) {
 # so that they can use your function within a parent viewport
 # (rather than the whole device) if they want to.
 grid.newpage <- function(recording=TRUE) {
+  # NOTE that we do NOT do grid.Call here because we have to do
+  # things slightly differently if grid.newpage is the first grid operation
+  # on a new device
   .Call("L_newpagerecording", par("ask"))
   .Call("L_newpage")
   .Call("L_initGPar")
@@ -113,8 +116,8 @@ grid.newpage <- function(recording=TRUE) {
 # that we can redraw upon edit.
 
 inc.display.list <- function() {
-  display.list <- .Call("L_getDisplayList")
-  dl.index <- .Call("L_getDLindex")
+  display.list <- grid.Call("L_getDisplayList")
+  dl.index <- grid.Call("L_getDLindex")
   dl.index <- dl.index + 1
   n <- length(display.list)
   # The " - 1" below is because dl.index is now stored internally
@@ -125,42 +128,59 @@ inc.display.list <- function() {
     display.list <- vector("list", n+100)
     display.list[1:n] <- temp
   }
-  .Call("L_setDisplayList", display.list)
-  .Call("L_setDLindex", as.integer(dl.index))
+  grid.Call("L_setDisplayList", display.list)
+  grid.Call("L_setDLindex", as.integer(dl.index))
 }
 
 # This will either ...
 #   (i) turn on AND INITIALISE the display list or ...
 #   (ii) turn off AND ERASE the display list
 grid.display.list <- function(on=TRUE) {
-  .Call("L_setDLon", as.logical(on))
+  grid.Call("L_setDLon", as.logical(on))
   if (on) {
-    .Call("L_setDisplayList", vector("list", 100))
-    .Call("L_setDLindex", as.integer(0))
+    grid.Call("L_setDisplayList", vector("list", 100))
+    grid.Call("L_setDLindex", as.integer(0))
   }
   else 
-    .Call("L_setDisplayList", NULL)
+    grid.Call("L_setDisplayList", NULL)
 }
 
 record <- function(x) {
-  if (.Call("L_getDLon"))
+  if (grid.Call("L_getDLon"))
     UseMethod("record")
 }
 
 # When there is a pop.viewport, the number of viewports popped
 # gets put on the display list
 record.default <- function(n) {
-  .Call("L_setDLelt", n)
+  grid.Call("L_setDLelt", n)
   inc.display.list()
 }
 
 record.grob <- function(grob) {
-  .Call("L_setDLelt", grob)
+  grid.Call("L_setDLelt", grob)
   inc.display.list()
 }
 
 record.viewport <- function(vp) {
-  .Call("L_setDLelt", vp)
+  grid.Call("L_setDLelt", vp)
   inc.display.list()
+}
+
+# Wrapper for .Call and .Call.graphics
+# Used to make sure that grid-specific initialisation occurs just before
+# the first grid graphics output OR the first querying of grid state
+# (on the current device)
+# The general rule is you should use these rather than .Call or
+# .Call.graphics unless you have a good reason and you know what
+# you are doing -- this will be a bit of overkill, but is for safety
+grid.Call <- function(fnname, ...) {
+  .Call("L_gridDirty")
+  .Call(fnname, ...)
+}
+
+grid.Call.graphics <- function(fnname, ...) {
+  .Call.graphics("L_gridDirty")
+  .Call.graphics(fnname, ...)
 }
 

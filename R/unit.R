@@ -48,7 +48,7 @@ convertNative <- function(unit, dimension="x", type="location") {
     2*(match(type, c("location", "dimension")) - 1)
   if (is.na(what))
     stop("Invalid dimension or type")
-  .Call("L_convertToNative", unit, as.integer(what))
+  grid.Call("L_convertToNative", unit, as.integer(what))
 }
 
 # NOTE: the order of the strings in these conversion functions must

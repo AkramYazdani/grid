@@ -23,12 +23,12 @@ saved.pars <- function(pars) {
 }
 push.saved.gpars <- function(gpars) {
   sp <- saved.pars(gpars)
-  sp$prev <- .Call("L_getGPsaved")
-  .Call("L_setGPsaved", sp)
+  sp$prev <- grid.Call("L_getGPsaved")
+  grid.Call("L_setGPsaved", sp)
 }
 
 pop.saved.gpars <- function() {
-  .Call("L_setGPsaved", .Call("L_getGPsaved")$prev)
+  grid.Call("L_setGPsaved", grid.Call("L_getGPsaved")$prev)
 }
 
 # possible gpar names
@@ -40,12 +40,12 @@ set.gpar <- function(gp) {
   if (!is.gpar(gp))
     stop("Argument must be a 'gpar' object")
   subset <- match(names(gp), .grid.gpar.names)
-  cur.gpars <- .Call("L_getGPar")
+  cur.gpars <- grid.Call("L_getGPar")
   push.saved.gpars(cur.gpars[subset])
   temp <- cur.gpars
   temp[subset] <- gp
   # Do this as a .Call.graphics to get it onto the base display list
-  .Call.graphics("L_setGPar", temp)
+  grid.Call.graphics("L_setGPar", temp)
 }
 
 unset.gpar <- function(gp) {
@@ -53,19 +53,19 @@ unset.gpar <- function(gp) {
     stop("Argument must be a 'gpar' object")
   # for debugging really
   subset <- match(names(gp), .grid.gpar.names)
-  saved.gpars <- .Call("L_getGPsaved")
+  saved.gpars <- grid.Call("L_getGPsaved")
   if (length(subset) != length(saved.gpars$pars))
     stop(paste("Trying to reset", names(gp),
                "with", saved.gpars$pars))
-  temp <- .Call("L_getGPar")
+  temp <- grid.Call("L_getGPar")
   temp[subset] <- saved.gpars$pars
   # Do this as a .Call.graphics to get it onto the base display list
-  .Call.graphics("L_setGPar", temp)
+  grid.Call.graphics("L_setGPar", temp)
   pop.saved.gpars()
 }  
 
 get.gpar <- function(gpar.name) {
-  .Call("L_getGPar")[[gpar.name]]
+  grid.Call("L_getGPar")[[gpar.name]]
 }
 
 

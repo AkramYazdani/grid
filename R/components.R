@@ -40,7 +40,9 @@ draw.details.xaxis <- function(axis, grob, recording=TRUE) {
   # We may have to create the children if there was not
   # enough information available at creation time
   if (is.na(axis$at)) {
-    at <- .Call("L_pretty", current.viewport()$xscale)
+    # FIXME:  There should be a grid.pretty rather than
+    # forcing users to use grid.Call
+    at <- grid.pretty(current.viewport()$xscale)
     # We edit the grob itself so that the change is permanent
     grid.edit(grob, at=at, redraw=FALSE)
     # Then we make sure the current draw is aware of the change
@@ -115,7 +117,7 @@ grid.xaxis <- function(at=NA, label = TRUE, main=TRUE, gp=gpar(),
       labels <- NULL
     }
     else
-      at <- .Call("L_pretty", vp$xscale)
+      at <- grid.pretty(vp$xscale)
   if (!is.na(at)) {
     major <- make.xaxis.major(at, main)
     ticks <- make.xaxis.ticks(at, main)
@@ -133,7 +135,7 @@ draw.details.yaxis <- function(axis, grob, recording=TRUE) {
   # We may have to create the children if there was not
   # enough information available at creation time
   if (is.na(axis$at)) {
-    at <- .Call("L_pretty", current.viewport()$yscale)
+    at <- grid.pretty(current.viewport()$yscale)
     grid.edit(grob, at=at, redraw=FALSE)
     axis <- grid.get(grob)
   }    
@@ -203,7 +205,7 @@ grid.yaxis <- function(at=NA, label=TRUE, main=TRUE, gp=gpar(),
       labels <- NULL
     }
     else
-      at <- .Call("L_pretty", vp$yscale)
+      at <- grid.pretty(vp$yscale)
   if (!is.na(at)) {
     major <- make.yaxis.major(at, main)
     ticks <- make.yaxis.ticks(at, main)

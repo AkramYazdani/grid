@@ -23,6 +23,7 @@
 #define GSS_GPSAVED 6
 #define GSS_VP 7
 #define GSS_GLOBALINDEX 8
+#define GSS_GRIDDEVICE 9
 
 #define GP_FILL 0
 #define GP_COL 1
@@ -173,7 +174,7 @@ SEXP unitData(SEXP unit, int index);
 
 int unitLength(SEXP u);
 
-int L_nullLayoutMode;
+extern int L_nullLayoutMode;
 
 int pureNullUnit(SEXP unit, int index);
 

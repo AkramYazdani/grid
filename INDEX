@@ -25,6 +25,7 @@ grid.place               Place an Object within a Frame
 grid.plot.and.legend     A simple plot and legend demo.
 grid.points              Draw Data Symbols in a Grid Viewport
 grid.polygon             Draw a Polygon
+grid.pretty              Generate a Sensible Set of Breakpoints
 grid.rect                Draw a rectangle in a Grid Viewport
 grid.segments            Draw Line Segments in a Grid Viewport
 grid.set                 Set the Contents of a Grid Graphical Object

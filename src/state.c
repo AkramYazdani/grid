@@ -2,9 +2,22 @@
 
 int gridRegisterIndex;
 
+/* The gridSystemState (per device) consists of 
+ * GSS_DEVSIZE 0 = current size of device
+ * GSS_CURRLOC 1 = current location of grid "pen" 
+ * GSS_DL 2 = grid display list
+ * GSS_DLINDEX 3 = display list index
+ * GSS_DLON 4 = is the display list on?
+ * GSS_GPAR 5 = gpar settings
+ * GSS_GPSAVED 6 = previous gpar settings
+ * GSS_VP 7 = viewport
+ * GSS_GLOBALINDEX 8 = index of this system state in the global list of states
+ * GSS_GRIDDEVICE 9 = does this device contain grid output?
+*/
+
 SEXP createGridSystemState()
 {
-    return allocVector(VECSXP, 9);
+    return allocVector(VECSXP, 10);
 }
 
 void initDL(GEDevDesc *dd)
@@ -25,7 +38,7 @@ void initDL(GEDevDesc *dd)
 
 void fillGridSystemState(SEXP state, GEDevDesc* dd) 
 {
-    SEXP devsize, currloc, dlon;
+    SEXP devsize, currloc, dlon, griddev;
     PROTECT(devsize = allocVector(REALSXP, 2));
     REAL(devsize)[0] = 0;
     REAL(devsize)[1] = 0;
@@ -43,14 +56,16 @@ void fillGridSystemState(SEXP state, GEDevDesc* dd)
     SET_VECTOR_ELT(state, GSS_DLON, dlon);
     initGPar(dd);
     SET_VECTOR_ELT(state, GSS_GPSAVED, R_NilValue);
-    /* Create a top-level viewport for this device
+    /* Do NOT initialise top-level viewport or grid display list for
+     * this device until there is some grid output 
      */
-    initVP(dd);
-    /* The top-level viewport goes at the start of the display list
-     */
-    initDL(dd);
     SET_VECTOR_ELT(state, GSS_GLOBALINDEX, R_NilValue);
-    UNPROTECT(3);
+    /* Note that no grid output has occurred on the device yet.
+     */
+    PROTECT(griddev = allocVector(LGLSXP, 1));
+    LOGICAL(griddev)[0] = FALSE;
+    SET_VECTOR_ELT(state, GSS_GRIDDEVICE, griddev);
+    UNPROTECT(4);
 }
 
 SEXP gridStateElement(GEDevDesc *dd, int elementIndex)
@@ -106,36 +121,11 @@ SEXP gridCallback(GEevent task, GEDevDesc *dd, SEXP data) {
     SEXP gridState;
     GESystemDesc *sd;
     SEXP currentgp;
-    SEXP fill;
+    SEXP fillsxp;
     SEXP gsd;
     SEXP devsize;
     switch (task) {
     case GE_InitState:
-	/* FIXME: Gross hack to stop the base graphics moaning at me.
-	 * This should be removed when base graphics have been 
-	 * properly split from the graphics engine.
-	 */
-	/* This is dangerous if base graphics are used in same device
-	 * because could then do base graphics operations that 
-	 * base graphics would normally not allow because 
-	 * plot.new() has not been called
-	 */
-	/* There is further danger that base graphics could switch it
-	 * off again, thereby incapacitating grid graphics.
-	 * For example, this might happen if a device is made too
-	 * small.
-	 */
-	GSetState(1, (DevDesc*) dd);
-	/* Even grosser hack to stop base graphics moaning
-	 */
-	/* This is currently the only way to set gpptr(dd)->valid
-	 * Needs fixing (in base graphics)!
-	 */
-	/* NOTE that this needs to go before the createGridSystemState
-	 * so that the silly clipping region it sets will get
-	 * overridden by the top-level viewport
-	 */
-	GNewPlot(FALSE);
 	/* Create the initial grid state for a device
 	 */
 	PROTECT(gridState = createGridSystemState());
@@ -165,23 +155,69 @@ SEXP gridCallback(GEevent task, GEDevDesc *dd, SEXP data) {
     case GE_SaveState:
 	break;
     case GE_RestoreState:
-	/* The graphics engine is about to replay the display list
-	 * So we "clear" the device and reset the grid graphics state
-	 */
 	gsd = (SEXP) dd->gesd[gridRegisterIndex]->systemSpecific;
 	PROTECT(devsize = allocVector(REALSXP, 2));
 	getDeviceSize(dd, &(REAL(devsize)[0]), &(REAL(devsize)[1]));
 	SET_VECTOR_ELT(gsd, GSS_DEVSIZE, devsize);
 	UNPROTECT(1);
-	currentgp = gridStateElement(dd, GSS_GPAR);
-	fill = gpFillSXP(currentgp);
-	gsd = (SEXP) dd->gesd[gridRegisterIndex]->systemSpecific;
-	if (isNull(fill))
-	    GENewPage(NA_INTEGER, gpGamma(currentgp), dd);
-	else
-	    GENewPage(RGBpar(fill, 0), gpGamma(currentgp), dd);
-	initGPar(dd);
-	initVP(dd);
+	/* Only bother to do any grid drawing setup 
+	 * if there has been grid output
+	 * on this device.
+	 */
+	if (LOGICAL(gridStateElement(dd, GSS_GRIDDEVICE))[0]) {
+	    /* The graphics engine is about to replay the display list
+	     * So we "clear" the device and reset the grid graphics state
+	     */
+	    /* There are two main situations in which this occurs:
+	     * (i) a screen is resized
+	     *     In this case, it is ok-ish to do a GENewPage
+	     *     because that has the desired effect and no 
+	     *     undesirable effects because it only happens on
+	     *     a screen device -- a new page is the same as
+	     *     clearing the screen
+	     * (ii) output on one device is copied to another device
+	     *     In this case, a GENewPage is NOT a good thing, however,
+	     *     here we will start with a new device and it will not
+	     *     have any grid output so this section will not get called
+	     *     SO we will not get any unwanted blank pages.
+	     *
+	     * All this is a bit fragile;  ultimately, what would be ideal
+	     * is a dev->clearPage primitive for all devices in addition
+	     * to the dev->newPage primitive
+	     */ 
+	    currentgp = gridStateElement(dd, GSS_GPAR);
+	    fillsxp = gpFillSXP(currentgp);
+	    /*
+	     * Instead of using the current fill, use ".grid.redraw.fill"
+	     * because if the current fill is transparent then the 
+	     * screen will not be cleared on a redraw
+	     * NOTE that this is a temporary fix awaiting a more complete
+	     * and complex fix (requiring changes to base)
+	     *
+	    
+	    fillsxp = getSymbolValue(".grid.redraw.fill");
+
+	     */
+	    /*
+	     * Just fill a rect rather than calling GENewPage
+
+	    if (isNull(fillsxp))
+		fill = NA_INTEGER;
+	    else
+		fill = RGBpar(fillsxp, 0);
+	    GERect(toDeviceX(-.1, GE_NDC, dd), toDeviceY(-.1, GE_NDC, dd),
+		   toDeviceX(1.1, GE_NDC, dd), toDeviceY(1.1, GE_NDC, dd),
+		   NA_INTEGER, fill, gpGamma(currentgp), 
+		   gpLineType(currentgp), gpLineWidth(currentgp), dd);
+
+	    */
+	    if (isNull(fillsxp))
+		GENewPage(NA_INTEGER, gpGamma(currentgp), dd);
+	    else
+		GENewPage(RGBpar(fillsxp, 0), gpGamma(currentgp), dd);
+	    initGPar(dd);
+	    initVP(dd);
+	}
 	break;
     case GE_CopyState:
 	break;

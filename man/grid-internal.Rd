@@ -4,15 +4,8 @@
 \alias{[.unit.arithmetic}
 \alias{[.unit.list}
 \alias{.GRID.STATE}
-\alias{.grid.Rpar.names}
-\alias{.grid.display.list}
-\alias{.grid.display.list.index}
-\alias{.grid.display.list.on}
 \alias{.grid.gpar.names}
-\alias{.grid.gpars}
 \alias{.grid.loaded}
-\alias{.grid.saved.Rpars}
-\alias{.grid.saved.gpars}
 \alias{.grid.unit.list}
 \alias{Ops.unit}
 \alias{Summary.unit}
@@ -61,6 +54,8 @@
 \alias{get.value}
 \alias{get.value.default}
 \alias{get.value.grob}
+\alias{grid.Call}
+\alias{grid.Call.graphics}
 \alias{grid.height}
 \alias{grid.init.viewport.stack}
 \alias{grid.legend}

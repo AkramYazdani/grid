@@ -183,7 +183,7 @@ grid.draw <- function(x, recording=TRUE) {
 
 draw.all <- function() {
   grid.newpage(recording=FALSE)
-  lapply(.Call("L_getDisplayList"), grid.draw, recording=FALSE)
+  lapply(grid.Call("L_getDisplayList"), grid.draw, recording=FALSE)
   NULL
 }
 
