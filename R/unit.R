@@ -215,12 +215,16 @@ unit.pmin <- function(...) {
 
 # create a unit list from a unit, unit.arithmetic, or unit.list object
 unit.list <- function(unit) {
-  l <- unit.length(unit)
-  result <- vector("list", l)
-  for (i in 1:l)
-    result[[i]] <- unit[i]
-  class(result) <- c("unit.list", "unit")
-  result
+  if (is.unit.list(unit))
+    unit
+  else {
+    l <- unit.length(unit)
+    result <- list() 
+    for (i in 1:l)
+      result[[i]] <- unit[i]
+    class(result) <- c("unit.list", "unit")
+    result
+  }
 }
 
 is.unit.list <- function(x) {
@@ -273,18 +277,7 @@ print.unit <- function(x, ...) {
   x <- x[(index - 1) %% this.length + 1]
   attr(x, "unit") <- units[(index - 1) %% length(units) + 1]
   attr(x, "valid.unit") <- valid.units[(index - 1) %% length(valid.units) + 1]
-  # Need to handle vector index for list subsetting
-  # FIXME:
-  # This should be able to just use the [(index-1) %% length(data)+1] too !?
-  data.list <- list()
-  for (i in index)
-    data.list <- c(data.list, list(data[[(i - 1) %% length(data) + 1]]))
-#  data.list <- vector("list", length(index))
-#  count <- 1
-#  for (i in index) {
-#    data.list[[count]] <- data[[(i - 1) %% length(data) + 1]]
-#    count <- count + 1
-#  }
+  data.list <- data[(index - 1) %% length(data) + 1]
   attr(x, "data") <- data.list
   class(x) <- cl
   x
@@ -308,20 +301,12 @@ print.unit <- function(x, ...) {
          "sum"=x)
 }
 
-# Need to handle vector index for list subsetting
 "[.unit.list" <- function(x, index, top=TRUE, ...) {
   this.length <- unit.list.length(x)
   if (top && index > this.length)
     stop("Index out of bounds (unit list subsetting)")
   cl <- class(x)
-  # FIXME:
-  # Should be able to use [(index-1) %% length(data)+1] too !?
-  result <- vector("list", length(index))
-  count <- 1
-  for (i in index) {
-    result[[count]] <- x[[(i - 1) %% this.length + 1]]
-    count <- count + 1
-  }
+  result <- unclass(x)[(index - 1) %% this.length + 1]
   class(result) <- cl
   result
 }
@@ -351,7 +336,7 @@ unit.c <- function(...) {
         inherits(x[[i]], "unit.arithmetic"))
       ual <- TRUE
   if (ual)
-    unit.list.c(...)
+    unit.list.from.list(x)
   else {
     values <- NULL
     units <- NULL
@@ -370,19 +355,25 @@ unit.c <- function(...) {
 }
 
 unit.list.from.list <- function(x) {
+  if (length(x) == 1)
+    unit.list(x[[1]])
+  else {
+    result <- c(unit.list(x[[1]]), unit.list.from.list(x[2:length(x)]))
+    class(result) <- c("unit.list", "unit")
+    result
+  }
+}
+
+# OLD unit.list.from.list <-
+function(x) {
   result <- unit.list(x[[1]])
   i <- 2
   while (i < length(x) + 1) {
     result <- c(result, unit.list(x[[i]]))
     i <- i + 1
   }
-  class(result) <- "unit.list"
-  unit.list(result)  
-}
-                                 
-unit.list.c <- function(...) {
-  x <- list(...)
-  unit.list.from.list(x)
+  class(result) <- c("unit.list", "unit")
+  result 
 }
 
 #########################
@@ -449,7 +440,7 @@ unit.arithmetic.length <- function(ua) {
   switch(ua$fname,
          "+"=max(unit.length(ua$arg1), unit.length(ua$arg2)),
          "-"=max(unit.length(ua$arg1), unit.length(ua$arg2)),
-         "*"=unit.length(ua$arg2),
+         "*"=max(length(ua$arg1), unit.length(ua$arg2)),
          "min"=1,
          "max"=1,
          "sum"=1)

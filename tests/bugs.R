@@ -2,12 +2,12 @@
 library(grid)
 
 postscript("bugs.ps")
-gf1 <- grid.frame(gp=gpar(fontsize=20), draw=F)
-grid.pack(gf1, grid.text("howdy", draw=F), draw=F)
-grid.pack(gf1, grid.rect(draw=F), col=1, row=1, draw=F)
-gf2 <- grid.frame(draw=F)
-grid.pack(gf2, gf1, draw=F)
-grid.pack(gf2, grid.rect(gp=gpar(col="red"), draw=F), col=1, row=1, draw=F)
+gf1 <- grid.frame(gp=gpar(fontsize=20), draw=FALSE)
+grid.pack(gf1, grid.text("howdy", draw=FALSE), draw=FALSE)
+grid.pack(gf1, grid.rect(draw=FALSE), col=1, row=1, draw=FALSE)
+gf2 <- grid.frame(draw=FALSE)
+grid.pack(gf2, gf1, draw=FALSE)
+grid.pack(gf2, grid.rect(gp=gpar(col="red"), draw=FALSE), col=1, row=1, draw=FALSE)
 grid.draw(gf2)
 grid.text("In the bug, you see a black and a red rectangle\nWhen the bug is fixed, the red rectangle overwrites the black one",
           y=unit(1, "npc") - unit(2, "lines"))

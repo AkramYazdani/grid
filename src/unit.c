@@ -292,11 +292,14 @@ double evaluateGrobWidthUnit(SEXP grob, int vpfont,
 	result = evaluateNullUnit(unitValue(width, 0));
     } else {
 	/* These are the current fontsize and lineheight.
-	 * They are adequate ONLY because of the strict
+	 * They are adequate (both in the sense of being the correct 
+	 * values and in the sense of being all the vpc information 
+	 * that is required) ONLY because of the strict
 	 * restrictions placed on what sort of units can
 	 * be used in a width.details method.
 	 * If those restrictions are lifted, all bets are off ...
 	 */
+	vpc.font = vpfont;
 	vpc.fontsize = vpfontsize;
 	vpc.lineheight = vplineheight;
 	resultINCHES = transformWidthtoINCHES(width, 0, vpc,
@@ -382,6 +385,7 @@ double evaluateGrobHeightUnit(SEXP grob, int vpfont,
     if (unitUnit(height, 0) == L_NULL) {
 	result = evaluateNullUnit(unitValue(height, 0));
     } else {
+	vpc.font = vpfont;
 	vpc.fontsize = vpfontsize;
 	vpc.lineheight = vplineheight;
 	resultINCHES = transformHeighttoINCHES(height, 0, vpc,
@@ -577,15 +581,6 @@ double transformX(SEXP x, int index,
 				   vpc.font, vpc.fontsize, vpc.lineheight,
 				   font, fontsize, lineheight,
 				   widthCM, heightCM, dd);
-	switch (vpc.origin) {
-	case L_BOTTOMLEFT:         
-	case L_TOPLEFT:    
-	    break;
-	case L_BOTTOMRIGHT:        
-	case L_TOPRIGHT: 
-	    result = 1 - result;
-	    break;
-	}
     }
     return result;
 }
@@ -636,15 +631,6 @@ double transformY(SEXP y, int index,
 				   vpc.font, vpc.fontsize, vpc.lineheight,
 				   font, fontsize, lineheight,
 				   heightCM, widthCM, dd);
-	switch (vpc.origin) {
-	case L_BOTTOMLEFT:
-	case L_BOTTOMRIGHT:
-	    break;          
-	case L_TOPLEFT:    
-	case L_TOPRIGHT:   
-	    result = 1 - result;
-	    break;
-	}
     } 
     return result;
 }
@@ -717,15 +703,6 @@ double transformWidth(SEXP width, int index,
 				    vpc.font, vpc.fontsize, vpc.lineheight,
 				    font, fontsize, lineheight,
 				    widthCM, heightCM, dd);
-	switch (vpc.origin) {
-	case L_BOTTOMLEFT:
-	case L_TOPLEFT: 
-	    break;
-	case L_BOTTOMRIGHT:
-	case L_TOPRIGHT:  
-	    result = -result;
-	    break;
-	}
     }
     return result;
 }
@@ -775,15 +752,6 @@ double transformHeight(SEXP height, int index,
 				    vpc.font, vpc.fontsize, vpc.lineheight,
 				    font, fontsize, lineheight,
 				    heightCM, widthCM, dd);
-	switch (vpc.origin) {
-	case L_BOTTOMLEFT:
-	case L_BOTTOMRIGHT:
-	    break;
-	case L_TOPLEFT:
-	case L_TOPRIGHT: 
-	    result = -result;
-	    break;
-	}
     }
     return result;
 }
@@ -1284,7 +1252,5 @@ SEXP validUnits(SEXP units)
     return answer;
 }
     
-
-
 
 

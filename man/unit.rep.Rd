@@ -1,7 +1,7 @@
 \name{unit.rep}
 \alias{unit.rep}
 %- Also NEED an `\alias' for EACH other topic documented here.
-\title{ ~~function to do ... ~~ }
+\title{ Replicate Elements of Unit Objects }
 \description{
   Replicates the units according to the values given
      in `times' and `length.out'.

@@ -55,10 +55,6 @@ double viewportYScaleMax(SEXP vp) {
     return numeric(getListElement(vp, "yscale"), 1);
 }
 
-int viewportOrigin(SEXP vp) {
-    return INTEGER(getListElement(vp, "valid.origin"))[0];
-}
-
 int viewportHJust(SEXP vp) {
     return INTEGER(getListElement(vp, "valid.just"))[0];
 }
@@ -131,7 +127,6 @@ void fillViewportContextFromViewport(SEXP vp,
     vpc->xscalemax = viewportXScaleMax(vp);
     vpc->yscalemin = viewportYScaleMin(vp);
     vpc->yscalemax = viewportYScaleMax(vp);
-    vpc->origin = viewportOrigin(vp);
     vpc->hjust = viewportHJust(vp);
     vpc->vjust = viewportVJust(vp);
 }
@@ -145,7 +140,6 @@ void copyViewportContext(LViewportContext vpc1, LViewportContext *vpc2)
     vpc2->xscalemax = vpc1.xscalemax;
     vpc2->yscalemin = vpc1.yscalemin;
     vpc2->yscalemax = vpc1.yscalemax;
-    vpc2->origin = vpc1.origin;
     vpc2->hjust = vpc1.hjust;
     vpc2->vjust = vpc1.vjust;
 }
@@ -185,15 +179,11 @@ void calcViewportTransform(SEXP vp, SEXP parent, Rboolean incremental,
 	 */
 	identity(parentTransform);
 	/* For a device, xmin=0, ymin=0, xmax=1, ymax=1, and
-	 * origin=L_BOTTOMLEFT
 	 */
 	parentContext.xscalemin = 0;
 	parentContext.yscalemin = 0;
 	parentContext.xscalemax = 1;
 	parentContext.yscalemax = 1;
-	/* FIXME:  check this is true for both postscript and X11
-	 */
-	parentContext.origin = L_BOTTOMLEFT;
 	/* FIXME:  How do I figure out the device fontsize ?
 	 * From ps.options etc, ... ?
 	 */

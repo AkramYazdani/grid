@@ -15,9 +15,9 @@ valid.viewport <- function(x, y, width, height, just, origin,
   if (!is.numeric(angle) || length(angle) != 1)
     stop("Invalid angle in viewport")
   if (!is.null(layout.pos.row))
-    layout.pos.row <- as.integer(rep(layout.pos.row, length.out=2))
+    layout.pos.row <- as.integer(rep(range(layout.pos.row), length.out=2))
   if (!is.null(layout.pos.col))
-    layout.pos.col <- as.integer(rep(layout.pos.col, length.out=2))
+    layout.pos.col <- as.integer(rep(range(layout.pos.col), length.out=2))
   # Put all the valid things first so that are found quicker
   vp <- list(x = x, y = y, width = width, height = height,
              valid.just = valid.just(just, 2),
@@ -121,3 +121,35 @@ is.viewport <- function(vp) {
   inherits(vp, "viewport")
 }
 
+#############
+# Some handy viewport functions
+#############
+
+# Create a viewport with margins given in number of lines
+plotViewport <- function(margins, ...) {
+  margins <- rep(as.numeric(margins), length.out=4)
+  viewport(x=unit(margins[2], "lines"),
+           width=unit(1, "npc") - unit(sum(margins[c(2,4)]), "lines"),
+           y=unit(margins[1], "lines"),
+           height=unit(1, "npc") - unit(sum(margins[c(1,3)]), "lines"),
+           just=c("left", "bottom"),
+           ...)
+}
+
+# Create a viewport from data
+# If xscale not specified then determine from x
+# If yscale not specified then determine from y
+dataViewport <- function(x=NULL, y=NULL, xscale=NULL, yscale=NULL,
+                          extension=0.05, ...) {
+  if (missing(xscale)) {
+    if (missing(x))
+      stop("Must specify at least one of x or xscale")
+    xscale <- range(x) + c(-1, 1)*diff(range(y))*extension
+  }
+  if (missing(yscale)) {
+    if (missing(y))
+      stop("Must specify at least one of y or yscale")
+    yscale <- range(y) + c(-1, 1)*diff(range(y))*extension
+  }
+  viewport(xscale=xscale, yscale=yscale, ...)
+}

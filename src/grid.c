@@ -1143,19 +1143,25 @@ SEXP L_points(SEXP x, SEXP y, SEXP pch, SEXP size)
     symbolSize = toDeviceWidth(symbolSize, GE_INCHES, dd);
     GEMode(1, dd);
     for (i=0; i<nx; i++)
-	if (R_FINITE(xx[i]) && R_FINITE(yy[i]))
+	if (R_FINITE(xx[i]) && R_FINITE(yy[i])) {
 	    /* FIXME:  The symbols will not respond to viewport
 	     * rotations !!!
 	     * I've got myGSymbol because I want to be able to
 	     * use a unit to specify the size of symbols rather
 	     * than just cex
 	     */
-	    GESymbol(xx[i], yy[i], INTEGER(pch)[i % npch], symbolSize,
+	    int ipch;
+	    if (isString(pch))
+		ipch = CHAR(STRING_ELT(pch, i % npch))[0];
+	    else
+		ipch = INTEGER(pch)[i % npch];
+	    GESymbol(xx[i], yy[i], ipch, symbolSize,
 		     gpCol(currentgp), gpFill(currentgp), gpGamma(currentgp),
 		     gpLineType(currentgp), gpLineWidth(currentgp),
 		     gpFont(currentgp), gpCex(currentgp), 
 		     gpFontSize(currentgp),
 		     dd);
+	}
     GEMode(0, dd);
     return R_NilValue;
 }

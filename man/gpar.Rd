@@ -33,6 +33,11 @@ gpar(...)
     lineheight \tab The height of a line as a multiple of fontsize \cr
     font \tab Font face \cr
   }
+
+  Specifying the value \code{NULL} for a parameter is the same as not
+  specifying any value for that parameter, except for \code{col} and
+  \code{fill}, where \code{NULL} indicates not to draw a border or
+  not to fill an area (respectively).  
 }
 \value{
   An object of class \code{"gpar"}.
@@ -43,8 +48,8 @@ gpar(col="red")
 gpar(col="blue", lty="solid", lwd=3, fontsize=16)
 grid.newpage()
 vp <- viewport(w=.8, h=.8, gp=gpar(col="blue"))
-grid.collection(grid.rect(gp=gpar(col="red"), draw=F),
-                grid.text("The rect is its own colour (red)\nbut this text is the colour\nset by the collection (green)", draw=F),
+grid.collection(grid.rect(gp=gpar(col="red"), draw=FALSE),
+                grid.text("The rect is its own colour (red)\nbut this text is the colour\nset by the collection (green)", draw=FALSE),
                 gp=gpar(col="green"), vp=vp)
 grid.text("This text is the colour set by the viewport (blue)",
           y=1, just=c("center", "bottom"), gp=gpar(fontsize=20), vp=vp)

@@ -491,7 +491,7 @@ grid.line.to(.5, unit(2,"native"))
 # tb stands for testbetween
 grid.newpage()
 push.viewport(viewport(h=.8, w=.8, angle=15))
-grid.multipanel(newpage=F)
+grid.multipanel(newpage=FALSE)
 pop.viewport()
 
 # tb stands for testbetween
@@ -536,7 +536,7 @@ pop.viewport()
 diffs <- (y - x)
 rdiffs <- range(diffs)
 ddiffs <- diff(rdiffs)
-bxp <- boxplot(diffs, plot=F)
+bxp <- boxplot(diffs, plot=FALSE)
 vp3 <- viewport(x=unit(3, "inches"),
                 y=unit(3, "inches"),
                 w=unit(.5, "inches"),
@@ -572,7 +572,7 @@ grid.lines(x=c(middle-.1, middle+.1), y=unit(bxp$stats[5,1], "native"))
 np <- length(bxp$out)
 if (np > 0)
   grid.points(x=rep(middle, np), y=unit(bxp$out, "native"))
-grid.yaxis(main=F)
+grid.yaxis(main=FALSE)
 pop.viewport(2)
 
 # tb stands for testbetween
@@ -589,14 +589,14 @@ grid.newpage()
   pch <- 1:3
   labels <- c("Girls", "Boys", "Other")
   gf <- grid.frame(draw=TRUE)
-  plot <- grid.collection(grid.rect(draw=F),
-                          grid.points(x, y1, pch=1, draw=F),
-                          grid.points(x, y2, pch=2, draw=F),
-                          grid.xaxis(draw=F),
-                          grid.yaxis(draw=F),
-                          draw=F)
+  plot <- grid.collection(grid.rect(draw=FALSE),
+                          grid.points(x, y1, pch=1, draw=FALSE),
+                          grid.points(x, y2, pch=2, draw=FALSE),
+                          grid.xaxis(draw=FALSE),
+                          grid.yaxis(draw=FALSE),
+                          draw=FALSE)
   grid.pack(gf, plot)
-  grid.pack(gf, grid.legend(pch, labels, draw=F), 
+  grid.pack(gf, grid.legend(pch, labels, draw=FALSE), 
             height=unit(1,"null"), side="right")
   grid.rect(gp=gpar(col="grey"))
   pop.viewport()
@@ -611,5 +611,71 @@ grid.rect(width=unit(1, "grobwidth", my.text),
 grid.edit(my.text, gp=gpar(fontsize=20))
 
 grid.edit(my.text, label="some different text")
+
+# tb stands for testbetween
+grid.newpage()
+###################################################
+### chunk number 1: 
+###################################################
+library(grid)
+diagram.locn <- function(i, n, locn) {
+  x <- i/(n+1)
+  grid.lines(x=unit(rep(x, 2), "npc"),
+             y=unit.c(unit(0, "npc"), locn))
+  grid.lines(x=unit(x, "npc") + unit(c(-2, 0, 2), "mm"),
+             y=locn + unit(c(-2, 0, -2), "mm"))
+  grid.text(paste(as.character(locn), "as a location"),
+            x=unit(x, "npc") - unit(1, "mm"),
+            y=locn - unit(3, "mm"),
+            just=c("right", "bottom"),
+            rot=90)
+}
+diagram.dimn <- function(i, n, dimn) {
+  x <- i/(n+1)
+  push.viewport(viewport(x=unit(x, "npc"), y=unit(0, "native"),
+            h=dimn, w=unit(1, "lines"), just=c("centre", "bottom")))
+  grid.rect()
+  grid.text(paste(as.character(dimn), "as a dimension"),
+            rot=90)
+  pop.viewport()
+}
+push.viewport(viewport(w=.8, y=unit(1.7, "inches"),
+			     h=unit(4, "inches"), 
+			     just=c("centre", "bottom"),
+			     yscale=c(-0.6, 1.3)))
+grid.grill(v=c(0, 1), h=seq(-.5, 1, .5), default.units="native")
+grid.rect()
+grid.yaxis()
+n <- 10
+diagram.locn(1, n, unit(1, "native"))
+diagram.locn(2, n, unit(-0.4, "native"))
+diagram.locn(3, n, unit(0.4, "native"))
+diagram.locn(4, n, unit(1, "native") + unit(-0.4, "native"))
+diagram.locn(5, n, unit(1, "native") - unit(0.4, "native"))
+diagram.dimn(6, n, unit(1, "native"))
+diagram.dimn(7, n, unit(-0.4, "native"))
+diagram.dimn(8, n, unit(0.4, "native"))
+diagram.dimn(9, n, unit(1, "native") + unit(-0.4, "native"))
+diagram.dimn(10, n, unit(1, "native") - unit(0.4, "native"))
+
+
+
+###################################################
+### chunk number 2: 
+###################################################
+push.viewport(viewport(yscale=c(-0.6, 1.3)))
+# Unexpected results?
+(convertNative(unit(1,'native'),'y'))
+(convertNative(unit(-.4,'native'),'y'))
+(convertNative(unit(1,'native')+unit(-.4,'native'),'y'))
+(convertNative(unit(1,'native')-unit(.4,'native'),'y'))
+# Expected results
+(convertNative(unit(1,'native'),'y', 'dimension'))
+(convertNative(unit(-.4,'native'),'y', 'dimension'))
+(convertNative(unit(1,'native')+unit(-.4,'native'),'y', 'dimension'))
+(convertNative(unit(1,'native')-unit(.4,'native'),'y', 'dimension'))
+pop.viewport()
+
+
 
 dev.off()

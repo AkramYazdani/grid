@@ -216,7 +216,8 @@ grid.show.viewport <- function(v, parent.layout=NULL, newpage=TRUE, vp=NULL) {
   }
 }
 
-grid.legend <- function(pch, labels, frame=TRUE,
+# old grid.legend <-
+function(pch, labels, frame=TRUE,
                         hgap=unit(0.5, "lines"), vgap=unit(0.5, "lines"),
                         default.units="lines",
                         gp=gpar(), draw=TRUE,
@@ -257,7 +258,7 @@ grid.legend <- function(pch, labels, frame=TRUE,
   gf
 }
 
-# An experimental new.grid.legend <-
+grid.legend <-
 function(pch, labels, frame=TRUE,
                         hgap=unit(0.5, "lines"), vgap=unit(0.5, "lines"),
                         default.units="lines",
@@ -277,15 +278,16 @@ function(pch, labels, frame=TRUE,
   if (length(vgap) != 1)
     stop("vgap must be single unit")
   legend.layout <-
-    grid.layout(nkeys, 2,
+    grid.layout(nkeys, 3,
                 widths=unit.c(unit(2, "lines"),
-                  max(unit(rep(1, nkeys), "strwidth", as.list(labels)))),
+                  max(unit(rep(1, nkeys), "strwidth", as.list(labels))),
+                  hgap),
                 heights=unit.pmax(unit(2, "lines"),
-                  unit(rep(1, nkeys), "strheight", as.list(labels))))
+                  vgap + unit(rep(1, nkeys), "strheight", as.list(labels))))
   gf <- grid.frame(layout=legend.layout, vp=vp, gp=gp, draw=FALSE)
   for (i in 1:nkeys) {
     grid.place(gf, grid.points(.5, .5, pch=pch[i], draw=FALSE),
-              col=1, row=i, draw=FALSE)
+               col=1, row=i, draw=FALSE)
     grid.place(gf, grid.text(labels[i], x=0, y=.5, just=c("left", "centre"),
                              draw=FALSE),
                col=2, row=i, draw=FALSE)

@@ -28,11 +28,13 @@ grid.pack(frame, grob, grob.name="", draw=TRUE, side=NULL,
   \item{side}{ One of \code{"left"}, \code{"top"}, \code{"right"},
     \code{"bottom"} to indicate which side to pack the object on. }
   \item{row}{ Which row to add the object to.  Must be between 1 and
-    the-number-of-rows-currently-in-the-frame + 1. }
+    the-number-of-rows-currently-in-the-frame + 1, or \code{NULL} in
+    which case the object occupies all rows. }
   \item{row.before}{ Add the object to a new row just before this row. }
   \item{row.after}{ Add the object to a new row just after this row. }
   \item{col}{ Which col to add the object to.  Must be between 1 and
-    the-number-of-cols-currently-in-the-frame + 1.  }
+    the-number-of-cols-currently-in-the-frame + 1, or \code{NULL} in
+    which case the object occupies all cols.  }
   \item{col.before}{Add the object to a new col just before this col.}
   \item{col.after}{ Add the object to a new col just after this col. }
   \item{width}{ Specifies the width of the column that the object is

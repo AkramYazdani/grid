@@ -13,8 +13,33 @@ is.gpar <- function(x) {
 }
 
 validGP <- function(gpars) {
-  if (!is.na(match("font", names(gpars))))
-    gpars$font <- as.integer(gpars$font)
+  # Check a gpar is numeric and not NULL
+  numnotnull <- function(gparname) {
+    if (!is.na(match(gparname, names(gpars)))) {
+      if (is.null(gpars[[gparname]]))
+        gpars[[gparname]] <<- NULL
+      else 
+        gpars[[gparname]] <<- as.numeric(gpars[[gparname]])
+    }
+  }
+  # fontsize, lineheight, cex, lwd should be numeric and not NULL
+  numnotnull("fontsize")
+  numnotnull("lineheight")
+  numnotnull("cex")
+  numnotnull("lwd")
+  numnotnull("gamma")
+  # col and fill are converted in C code
+  # so is lty, BUT still want to check for NULL
+  if (!is.na(match("lty", names(gpars)))) 
+    if (is.null(gpars$lty))
+      gpars$lty <- NULL  
+  # font should be integer and not NULL
+  if (!is.na(match("font", names(gpars)))) {
+    if (is.null(gpars$font))
+      gpars$font <- NULL
+    else
+      gpars$font <- as.integer(gpars$font)
+  }
   gpars
 }
 

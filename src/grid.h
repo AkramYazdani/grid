@@ -94,13 +94,6 @@ typedef enum {
     L_CENTER = 5
 } LJustification;
 
-typedef enum {
-    L_BOTTOMLEFT = 0,
-    L_TOPLEFT = 1,
-    L_BOTTOMRIGHT = 2,
-    L_TOPRIGHT = 3
-} LOrigin;
-
 /* An arbitrarily-oriented rectangle.
  * The vertices are assumed to be in order going anitclockwise 
  * around the rectangle.
@@ -137,7 +130,6 @@ typedef struct {
     double xscalemax;
     double yscalemin;
     double yscalemax;
-    int origin;
     int hjust;
     int vjust;
 } LViewportContext;
@@ -339,8 +331,6 @@ double viewportXScaleMax(SEXP vp);
 double viewportYScaleMin(SEXP vp);
 
 double viewportYScaleMax(SEXP vp);
-
-int viewportOrigin(SEXP vp);
 
 int viewportHJust(SEXP v);
 

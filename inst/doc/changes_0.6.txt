@@ -1,3 +1,47 @@
+Changes from grid_0.5-1 to grid_0.6:
+------------------------------------
+
+1.  Some internal changes to speed up creation of unit objects.  
+    This may have a noticeable effect on drawing legends and anything 
+    that relies on grid frames (e.g., "key"s in lattice).
+
+2.  A couple of bug fixes for "grobwidth" and "grobheight" units.
+    Symptoms were legends not being allocated the correct amount of 
+    space.
+
+    Thanks to Deepayan Sarkar and Peter Kleiweg for help diagnosing
+    the bug and testing the fix.
+
+3.  Added a plot.viewport() convenience function for creating a 
+    viewport that has the typical layout of an R plot.
+
+4.  Altered viewport() function so that layout.pos.row and layout.pos.col
+    can be specified as a sequence and only the range() of that 
+    sequence is used.
+
+5.  Removed most documentation from the package to reduce the download
+    size.  The user's guide and changes file are included with the
+    tar ball, but the other documents are only available via 
+    http://www.stat.auckland.ac.nz/PEOPLE/paul/grid/grid.html
+
+    Also changed the format of the user's guide from postscript to pdf.
+
+6.  Fixed bug in unit.length where the length of a unit.arithmetic object
+    was calculated incorrectly if the length() of the scalar multiplier
+    was longer than the unit.length() of the unit object being multiplied.
+
+7.  Allowed character settings for pch in grid.points()
+
+8.  The crash on Windows platforms when plot history is turned on
+    has been fixed in R version 1.5.  
+
+    This fix means that grid_0.6 will only run on R version >= 1.5.0
+
+9.  Added handling of NULL values for gpar elements.  Except for col
+    and fill, this now means the same as specifying no setting at all
+    for the element -- previous behaviour was a segfault.
+
+
 Changes from grid_0.5 to grid_0.5-1:
 ------------------------------------
 

@@ -16,7 +16,8 @@ grid.points(x = unit(runif(10), "native"),
 \arguments{
   \item{x}{A numeric vector or unit object specifying x-values.}
   \item{y}{A numeric vector or unit object specifying y-values.}
-  \item{pch}{A numeric indicating what sort of plotting symbol to use.}
+  \item{pch}{A numeric or character vector
+    indicating what sort of plotting symbol to use.}
   \item{size}{A unit object specifying the size of the plotting symbols.}
   \item{default.units}{A string indicating the default units to use
     if \code{x} or \code{y} are only given as numeric vectors.}  

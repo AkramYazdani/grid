@@ -223,7 +223,7 @@ grid.points <- function(x=runif(10),
     x <- unit(x, default.units)
   if (!is.unit(y))
     y <- unit(y, default.units)
-  if (length(x) != length(y))
+  if (unit.length(x) != unit.length(y))
     stop("x and y must be unit objects and have the same length")
   p <- list(x=x, y=y, pch=valid.pch(pch), size=size, gp=gp, vp=vp)
   cl <- "points"

@@ -54,9 +54,11 @@ viewport(x = unit(0.5, "npc"), y = unit(0.5, "npc"),
     degrees, anitclockwise from the positive x-axis.}
   \item{layout}{A Grid layout object which splits the viewport into
     subregions.}
-  \item{layout.pos.row}{The rows occupied by this viewport in its
+  \item{layout.pos.row}{A numeric vector giving the
+    rows occupied by this viewport in its
     parent's layout.}
-  \item{layout.pos.col}{The columns occupied by this viewport in its
+  \item{layout.pos.col}{A numeric vector giving the
+    columns occupied by this viewport in its
     parent's layout.}
 }
 \details{
